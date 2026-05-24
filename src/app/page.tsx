@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 // Maintenant: apiFetch intercepte le 401, efface le cookie immédiatement
 // et redirige directement vers /login?reason=session_expired en une seule étape.
 import { apiFetch } from "@/lib/api-client";
+import { LogoIcon } from "@/components/shared/LogoIcon";
 
 export default function HomePage() {
   const router = useRouter();
@@ -38,7 +39,8 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
+      <LogoIcon size={56} showBackground={false} />
       <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );

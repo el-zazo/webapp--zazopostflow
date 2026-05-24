@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Home, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/shared/LogoIcon";
 
 export default function NotFound() {
   const router = useRouter();
@@ -11,6 +12,11 @@ export default function NotFound() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="text-center space-y-6 max-w-md w-full">
+        {/* Logo Premium */}
+        <div className="flex justify-center">
+          <LogoIcon size={48} showBackground={false} />
+        </div>
+
         {/* 404 Number */}
         <div className="space-y-2">
           <h1 className="text-[120px] font-bold leading-none text-transparent bg-clip-text bg-gradient-to-b from-orange-500 to-orange-500/20 select-none">
