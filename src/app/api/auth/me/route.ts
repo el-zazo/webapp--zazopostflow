@@ -17,7 +17,7 @@ export async function GET() {
 
     // Fetch full user data from DB (authUser already verified existence)
     const dbUser = await User.findById(authUser.userId)
-      .select("-password -resetToken -resetTokenExpiry -email_verification_token -email_verification_expires -delete_account_token -delete_account_expires -delete_account_requested_at");
+      .select("-password -resetToken -resetTokenExpiry -email_verification_token -email_verification_expires -delete_account_token -delete_account_expires -delete_account_requested_at -two_factor_secret -two_factor_backup_codes");
 
     if (!dbUser) {
       return NextResponse.json(
@@ -36,6 +36,7 @@ export async function GET() {
           avatar: dbUser.avatar,
           theme: dbUser.theme,
           active: dbUser.active,
+          two_factor_enabled: dbUser.two_factor_enabled || false,
           createdAt: dbUser.createdAt?.toISOString(),
           updatedAt: dbUser.updatedAt?.toISOString(),
         },

@@ -55,6 +55,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── 2FA Check ────────────────────────────────────────────────────────
+    // Si 2FA activé → ne pas encore connecter → demander le code 2FA
+    if (user.two_factor_enabled) {
+      return NextResponse.json({
+        success: true,
+        requires2FA: true,
+        userId: user._id.toString(), // Temporaire pour le challenge
+        message: "2FA code required",
+      });
+    }
+
+    // Login normal → générer JWT
     const token = signToken({
       userId: user._id.toString(),
       email: user.email,

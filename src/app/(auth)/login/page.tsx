@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -40,6 +40,13 @@ function LoginContent() {
   const reason = searchParams.get("reason");
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  // ── 2FA States ────────────────────────────────────────────────────────
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [twoFactorUserId, setTwoFactorUserId] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [isUsingBackup, setIsUsingBackup] = useState(false);
+  const [is2FALoading, setIs2FALoading] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -77,6 +84,14 @@ function LoginContent() {
         return;
       }
 
+      // ── 2FA : Si le backend demande un code 2FA ──
+      if (result.requires2FA) {
+        setRequires2FA(true);
+        setTwoFactorUserId(result.userId);
+        return;
+      }
+
+      // Login normal (sans 2FA)
       toast({
         title: "Welcome back!",
         description: "You've been logged in successfully.",
@@ -95,6 +110,140 @@ function LoginContent() {
     }
   };
 
+  // ── Handler pour soumettre le code 2FA ──────────────────────────────
+  const handle2FASubmit = async () => {
+    const minLen = isUsingBackup ? 6 : 6;
+    if (!twoFactorCode || twoFactorCode.length < minLen) return;
+
+    setIs2FALoading(true);
+    try {
+      const res = await fetch("/api/auth/2fa/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: twoFactorUserId,
+          code: twoFactorCode.replace(/\s/g, ""),
+        }),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        if (result.usedBackupCode && result.remainingBackupCodes < 3) {
+          toast({
+            title: "Backup code used",
+            description: `${result.remainingBackupCodes} backup codes remaining.`,
+          });
+        }
+        toast({
+          title: "Welcome back!",
+          description: "2FA verified. You've been logged in successfully.",
+        });
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        toast({
+          title: "Invalid code",
+          description: result.error || "Please try again",
+          variant: "destructive",
+        });
+        setTwoFactorCode("");
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+      setTwoFactorCode("");
+    } finally {
+      setIs2FALoading(false);
+    }
+  };
+
+  // ── UI : Si 2FA requis → afficher le formulaire 2FA ──────────────────
+  if (requires2FA) {
+    return (
+      <Card className="bg-card border-border">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-2">
+            <div className="w-14 h-14 rounded-full bg-orange-500/10 flex items-center justify-center">
+              <ShieldCheck className="w-7 h-7 text-orange-500" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-foreground">
+            Two-Factor Authentication
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            {isUsingBackup
+              ? "Enter one of your backup codes"
+              : "Enter the 6-digit code from your authenticator app"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Input
+            placeholder={isUsingBackup ? "XXXXXXXX" : "000000"}
+            value={twoFactorCode}
+            onChange={(e) => {
+              if (isUsingBackup) {
+                setTwoFactorCode(e.target.value.toUpperCase().slice(0, 8));
+              } else {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                setTwoFactorCode(val);
+              }
+            }}
+            maxLength={isUsingBackup ? 8 : 6}
+            className="text-center text-2xl tracking-widest h-14 font-mono"
+            onKeyDown={(e) => e.key === "Enter" && handle2FASubmit()}
+            autoFocus
+          />
+
+          <Button
+            onClick={handle2FASubmit}
+            disabled={is2FALoading || twoFactorCode.length < 6}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            {is2FALoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              "Verify"
+            )}
+          </Button>
+        </CardContent>
+        <CardFooter className="flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsUsingBackup(!isUsingBackup);
+              setTwoFactorCode("");
+            }}
+            className="text-sm text-muted-foreground hover:text-orange-500 transition-colors"
+          >
+            {isUsingBackup
+              ? "Use authenticator app instead"
+              : "Use a backup code instead"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setRequires2FA(false);
+              setTwoFactorUserId("");
+              setTwoFactorCode("");
+            }}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            &larr; Back to login
+          </button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  // ── UI : Formulaire de login normal ──────────────────────────────────
   return (
     <Card className="bg-card border-border">
       <CardHeader className="text-center">

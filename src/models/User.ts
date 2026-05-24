@@ -19,6 +19,10 @@ export interface IUser extends Document {
   // mis à jour. Lors de la vérification du JWT, on compare `iat` du token
   // avec `passwordChangedAt`. Si le token est antérieur, il est rejeté.
   passwordChangedAt: Date | null;
+  // ── 2FA TOTP ──────────────────────────────────────────────────────────
+  two_factor_secret: string | null;
+  two_factor_enabled: boolean;
+  two_factor_backup_codes: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +98,19 @@ const UserSchema = new Schema<IUser>(
     passwordChangedAt: {
       type: Date,
       default: null,
+    },
+    // ── 2FA TOTP fields ─────────────────────────────────────────────────
+    two_factor_secret: {
+      type: String,
+      default: null,
+    },
+    two_factor_enabled: {
+      type: Boolean,
+      default: false,
+    },
+    two_factor_backup_codes: {
+      type: [String],
+      default: [],
     },
   },
   {

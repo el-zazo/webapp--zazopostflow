@@ -29,6 +29,7 @@ import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { useTheme } from "next-themes";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { LogoutButton } from "@/components/shared/LogoutButton";
+import { TwoFactorSetup } from "@/components/settings/TwoFactorSetup";
 import { apiFetch } from "@/lib/api-client";
 
 // ── Password strength logic ──────────────────────────────────────────
@@ -96,6 +97,9 @@ export default function SettingsPage() {
   const [deleteEmail, setDeleteEmail] = useState("");
   const [user, setUser] = useState<{ username: string; email: string; theme: string } | null>(null);
 
+  // ── 2FA State ─────────────────────────────────────────────────────────
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -130,6 +134,8 @@ export default function SettingsPage() {
           if (data.data.user.theme) {
             setTheme(data.data.user.theme);
           }
+          // ── Récupérer le statut 2FA ────────────────────────────────
+          setIs2FAEnabled(data.data.user.two_factor_enabled || false);
         }
       } catch (error) {
         console.error("Failed to fetch user:", error);
@@ -336,129 +342,148 @@ export default function SettingsPage() {
 
         {/* Security Tab */}
         <TabsContent value="security">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-foreground">Change Password</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Update your password to keep your account secure
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...passwordForm}>
-                <form
-                  onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
-                  className="space-y-4 max-w-md"
-                >
-                  <FormField
-                    control={passwordForm.control}
-                    name="currentPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Current Password</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="password"
-                            className="bg-background border-border"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+          <div className="space-y-6">
+            {/* ── 2FA Section ────────────────────────────────────────────── */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Two-Factor Authentication</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Add an extra layer of security to your account with TOTP
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TwoFactorSetup
+                  isEnabled={is2FAEnabled}
+                  onStatusChange={(enabled) => setIs2FAEnabled(enabled)}
+                />
+              </CardContent>
+            </Card>
 
-                  <FormField
-                    control={passwordForm.control}
-                    name="newPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>New Password</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="password"
-                            placeholder="At least 12 characters"
-                            className="bg-background border-border"
-                            {...field}
-                          />
-                        </FormControl>
-                        {/* Password strength bars */}
-                        {newPasswordValue && newPasswordValue.length > 0 && (
-                          <div className="space-y-2 pt-1">
-                            <div className="flex gap-1.5">
-                              {[1, 2, 3, 4].map((bar) => (
-                                <div
-                                  key={bar}
-                                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                                    bar <= pwStrength
-                                      ? `${pwStrengthInfo.color} ${pwStrengthInfo.shadow}`
-                                      : "bg-muted"
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            {pwStrengthInfo.label && (
-                              <div className="flex items-center justify-between">
-                                <span
-                                  className={`text-xs font-medium transition-all duration-300 ${
-                                    pwStrength === 4
-                                      ? "text-green-500"
-                                      : pwStrength === 3
-                                      ? "text-orange-500"
-                                      : pwStrength === 2
-                                      ? "text-yellow-500"
-                                      : "text-red-500"
-                                  }`}
-                                >
-                                  {pwStrengthInfo.label}
-                                </span>
-                                {pwStrength === 4 && (
-                                  <span className="text-xs text-green-500 animate-pulse">✓ Ready</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={passwordForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirm New Password</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="password"
-                            className="bg-background border-border"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type="submit"
-                    className="bg-orange-500 hover:bg-orange-600 text-white"
-                    disabled={passwordLoading}
+            {/* ── Change Password Section ────────────────────────────────── */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Change Password</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Update your password to keep your account secure
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...passwordForm}>
+                  <form
+                    onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
+                    className="space-y-4 max-w-md"
                   >
-                    {passwordLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      "Update Password"
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+                    <FormField
+                      control={passwordForm.control}
+                      name="currentPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              className="bg-background border-border"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={passwordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="At least 12 characters"
+                              className="bg-background border-border"
+                              {...field}
+                            />
+                          </FormControl>
+                          {/* Password strength bars */}
+                          {newPasswordValue && newPasswordValue.length > 0 && (
+                            <div className="space-y-2 pt-1">
+                              <div className="flex gap-1.5">
+                                {[1, 2, 3, 4].map((bar) => (
+                                  <div
+                                    key={bar}
+                                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                                      bar <= pwStrength
+                                        ? `${pwStrengthInfo.color} ${pwStrengthInfo.shadow}`
+                                        : "bg-muted"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              {pwStrengthInfo.label && (
+                                <div className="flex items-center justify-between">
+                                  <span
+                                    className={`text-xs font-medium transition-all duration-300 ${
+                                      pwStrength === 4
+                                        ? "text-green-500"
+                                        : pwStrength === 3
+                                        ? "text-orange-500"
+                                        : pwStrength === 2
+                                        ? "text-yellow-500"
+                                        : "text-red-500"
+                                    }`}
+                                  >
+                                    {pwStrengthInfo.label}
+                                  </span>
+                                  {pwStrength === 4 && (
+                                    <span className="text-xs text-green-500 animate-pulse">&#10003; Ready</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={passwordForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              className="bg-background border-border"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      disabled={passwordLoading}
+                    >
+                      {passwordLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        "Update Password"
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Appearance Tab */}
