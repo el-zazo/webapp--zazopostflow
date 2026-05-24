@@ -18,7 +18,10 @@ export const metadata: Metadata = {
   description:
     "Organize, schedule, and manage your LinkedIn posts across all your development projects.",
   icons: {
-    icon: "/logo.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/logo.svg", type: "image/svg+xml", sizes: "any" },
+    ],
   },
 };
 

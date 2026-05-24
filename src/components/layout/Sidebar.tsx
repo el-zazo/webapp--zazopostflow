@@ -8,7 +8,6 @@ import {
   FolderKanban,
   CalendarDays,
   Settings,
-  PenLine,
   Tags,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,12 +67,16 @@ export function Sidebar() {
     <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 z-50">
       <div className="flex flex-col h-full bg-card border-r border-border">
         {/* Logo */}
-        <div className="flex items-center gap-2 px-6 py-5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500">
-            <PenLine className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-lg font-bold text-foreground">PostFlow</span>
-        </div>
+        <Link href="/dashboard" className="flex items-center gap-2.5 px-6 py-5 group">
+          <img
+            src="/logo.svg"
+            alt="PostFlow"
+            className="w-8 h-8 rounded-lg transition-transform duration-200 group-hover:scale-105"
+          />
+          <span className="text-lg font-bold text-foreground tracking-tight">
+            Post<span className="text-orange-500">Flow</span>
+          </span>
+        </Link>
 
         <Separator />
 
