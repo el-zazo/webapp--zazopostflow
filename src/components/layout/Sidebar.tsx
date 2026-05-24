@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { LogoutButton } from "@/components/shared/LogoutButton";
+import { LogoFull } from "@/components/shared/LogoFull";
 import { apiFetch } from "@/lib/api-client";
 
 const navItems = [
@@ -66,16 +67,9 @@ export function Sidebar() {
   return (
     <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 z-50">
       <div className="flex flex-col h-full bg-card border-r border-border">
-        {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-2.5 px-6 py-5 group">
-          <img
-            src="/logo.svg"
-            alt="PostFlow"
-            className="w-8 h-8 rounded-lg transition-transform duration-200 group-hover:scale-105"
-          />
-          <span className="text-lg font-bold text-foreground tracking-tight">
-            Post<span className="text-orange-500">Flow</span>
-          </span>
+        {/* Logo Premium */}
+        <Link href="/dashboard" className="px-6 py-5">
+          <LogoFull iconSize={36} />
         </Link>
 
         <Separator />
