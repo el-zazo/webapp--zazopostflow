@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { apiFetch } from "@/lib/api-client";
+import { RegenerateBackupCodes } from "./RegenerateBackupCodes";
 
 interface TwoFactorSetupProps {
   isEnabled: boolean;
@@ -46,6 +47,7 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
   const [error, setError] = useState<string | null>(null);
 
   // View Backup Codes states
+  const [backupCodesRevealed, setBackupCodesRevealed] = useState(false);
   const [viewBackupPassword, setViewBackupPassword] = useState("");
   const [viewBackupCode, setViewBackupCode] = useState("");
   const [viewedBackupCodes, setViewedBackupCodes] = useState<string[]>([]);
@@ -144,7 +146,8 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
       const data = await res.json();
 
       if (data.success) {
-        setViewedBackupCodes(data.data.backupCodes);
+        setViewedBackupCodes(data.data.backupCodes); // peut être []
+        setBackupCodesRevealed(true); // toujours true si auth réussie
       } else {
         setViewBackupError(data.error || "Failed to retrieve backup codes");
       }
@@ -189,6 +192,7 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
     setDisable2FACode("");
     setError(null);
     // Reset view backup codes
+    setBackupCodesRevealed(false);
     setViewBackupPassword("");
     setViewBackupCode("");
     setViewedBackupCodes([]);
@@ -242,6 +246,7 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
                 className="gap-1.5"
                 onClick={() => {
                   setViewBackupError(null);
+                  setBackupCodesRevealed(false);
                   setViewedBackupCodes([]);
                   setViewBackupPassword("");
                   setViewBackupCode("");
@@ -580,8 +585,8 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
 
           <div className="space-y-4 py-2">
 
-            {viewedBackupCodes.length === 0 ? (
-              // ── Formulaire d'authentification ──
+            {!backupCodesRevealed ? (
+              // ── Formulaire auth ──
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Enter your password and current 2FA code to view your backup codes.
@@ -656,63 +661,87 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
                 </div>
               </div>
             ) : (
-              // ── Afficher les backup codes ──
+              // ── Afficher codes (même si 0) ──
               <div className="space-y-4">
 
-                {/* Warning */}
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                  <p className="text-xs text-yellow-400 font-medium flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    Keep these codes safe and secret
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Each code can only be used once to log in if you lose
-                    access to your authenticator app.
-                  </p>
-                </div>
-
-                {/* Count restant */}
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {viewedBackupCodes.length}
-                    </span>{" "}
-                    backup codes remaining
-                  </p>
-                </div>
-
-                {/* Grille des codes */}
-                <div className="grid grid-cols-2 gap-2">
-                  {viewedBackupCodes.map((code, i) => (
-                    <div
-                      key={i}
-                      className="font-mono text-sm text-center py-2 px-3 bg-muted/50 rounded-lg border border-border text-foreground"
-                    >
-                      {code}
+                {viewedBackupCodes.length === 0 ? (
+                  // ── Aucun code restant ──
+                  <div className="text-center py-4 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                      <AlertTriangle className="w-6 h-6 text-destructive" />
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        No backup codes remaining
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        All your backup codes have been used.
+                        Generate new ones to keep your account secure.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  // ── Codes existants ──
+                  <>
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                      <p className="text-xs text-yellow-400 font-medium flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        Keep these codes safe and secret
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Each code can only be used once.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {viewedBackupCodes.length}
+                        </span>{" "}
+                        backup codes remaining
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {viewedBackupCodes.map((code, i) => (
+                        <div
+                          key={i}
+                          className="font-mono text-sm text-center py-2 px-3 bg-muted/50 rounded-lg border border-border text-foreground"
+                        >
+                          {code}
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={handleCopyBackupCodes}
+                    >
+                      {backupCodesCopied ? (
+                        <><Check className="w-4 h-4 text-green-500" />Copied!</>
+                      ) : (
+                        <><Copy className="w-4 h-4" />Copy All Codes</>
+                      )}
+                    </Button>
+                  </>
+                )}
+
+                {/* Bouton Regenerate (toujours visible) */}
+                <div className="border-t border-border pt-3">
+                  <RegenerateBackupCodes
+                    onSuccess={(newCodes) => {
+                      setViewedBackupCodes(newCodes);
+                    }}
+                  />
                 </div>
 
-                {/* Boutons */}
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1 gap-2"
-                    onClick={handleCopyBackupCodes}
-                  >
-                    {backupCodesCopied ? (
-                      <><Check className="w-4 h-4 text-green-500" />Copied!</>
-                    ) : (
-                      <><Copy className="w-4 h-4" />Copy All</>
-                    )}
-                  </Button>
-                  <Button
-                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                    onClick={handleClose}
-                  >
-                    Done
-                  </Button>
-                </div>
+                <Button
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={handleClose}
+                >
+                  Done
+                </Button>
               </div>
             )}
           </div>

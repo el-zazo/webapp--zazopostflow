@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, User, Shield, Palette, AlertTriangle, Trash2, Mail } from "lucide-react";
+import { Loader2, User, Shield, ShieldCheck, Palette, AlertTriangle, Trash2, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { useTheme } from "next-themes";
@@ -95,10 +95,16 @@ export default function SettingsPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteRequested, setDeleteRequested] = useState(false);
   const [deleteEmail, setDeleteEmail] = useState("");
+  const [deleteRequires2FA, setDeleteRequires2FA] = useState(false);
+  const [delete2FACode, setDelete2FACode] = useState("");
   const [user, setUser] = useState<{ username: string; email: string; theme: string } | null>(null);
 
   // ── 2FA State ─────────────────────────────────────────────────────────
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+
+  // ── Change Password 2FA State ──────────────────────────────────────────
+  const [changePasswordRequires2FA, setChangePasswordRequires2FA] = useState(false);
+  const [changePassword2FACode, setChangePassword2FACode] = useState("");
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -167,13 +173,25 @@ export default function SettingsPage() {
       const res = await apiFetch("/api/user", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "password", ...data }),
+        body: JSON.stringify({
+          action: "password",
+          ...data,
+          twoFactorCode: changePassword2FACode || undefined,
+        }),
       });
 
       const result = await res.json();
       if (result.success) {
         toast({ title: "Password updated successfully!" });
         passwordForm.reset();
+        setChangePasswordRequires2FA(false);
+        setChangePassword2FACode("");
+      } else if (result.requires2FA) {
+        setChangePasswordRequires2FA(true);
+        toast({
+          title: "2FA Required",
+          description: "Please enter your 2FA code to confirm.",
+        });
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }
@@ -208,7 +226,10 @@ export default function SettingsPage() {
       const res = await apiFetch("/api/auth/request-delete-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: deletePassword }),
+        body: JSON.stringify({
+          password: deletePassword,
+          twoFactorCode: delete2FACode || undefined,
+        }),
       });
 
       const data = await res.json();
@@ -217,9 +238,18 @@ export default function SettingsPage() {
         setDeleteRequested(true);
         setDeleteEmail(data.email);
         setDeletePassword("");
+        setDelete2FACode("");
+        setDeleteRequires2FA(false);
         toast({
           title: "Confirmation email sent",
           description: "Check your inbox to confirm account deletion.",
+        });
+      } else if (data.requires2FA) {
+        setDeleteRequires2FA(true);
+        toast({
+          title: "2FA Required",
+          description: "Enter your 2FA code to confirm account deletion.",
+          variant: "destructive",
         });
       } else {
         toast({
@@ -465,6 +495,30 @@ export default function SettingsPage() {
                       )}
                     />
 
+                    {/* 2FA Code (conditionnel) */}
+                    {changePasswordRequires2FA && (
+                      <div className="space-y-1.5">
+                        <FormLabel className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-orange-500" />
+                          2FA Code Required
+                        </FormLabel>
+                        <Input
+                          placeholder="6-digit code from authenticator"
+                          value={changePassword2FACode}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                            setChangePassword2FACode(val);
+                          }}
+                          className="text-center tracking-widest font-mono bg-background border-border"
+                          maxLength={6}
+                          autoFocus
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Your account has 2FA enabled. Enter your authenticator code to confirm.
+                        </p>
+                      </div>
+                    )}
+
                     <Button
                       type="submit"
                       className="bg-orange-500 hover:bg-orange-600 text-white"
@@ -579,6 +633,30 @@ export default function SettingsPage() {
                         className="border-destructive/30 focus-visible:ring-destructive/30"
                       />
                     </div>
+
+                    {/* 2FA Code (conditionnel) */}
+                    {deleteRequires2FA && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center gap-2 text-foreground">
+                          <ShieldCheck className="w-4 h-4 text-orange-500" />
+                          2FA Code Required
+                        </label>
+                        <Input
+                          placeholder="6-digit code from authenticator"
+                          value={delete2FACode}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                            setDelete2FACode(val);
+                          }}
+                          className="text-center tracking-widest font-mono border-destructive/30"
+                          maxLength={6}
+                          autoFocus
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Your account has 2FA enabled. Enter your authenticator code to confirm.
+                        </p>
+                      </div>
+                    )}
 
                     <ConfirmDialog
                       trigger={

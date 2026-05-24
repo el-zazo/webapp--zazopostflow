@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcryptjs from "bcryptjs";
+import { verifySync } from "otplib";
 import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
@@ -107,6 +108,62 @@ export async function PUT(request: NextRequest) {
           { success: false, error: "Current password is incorrect" },
           { status: 400 }
         );
+      }
+
+      // ── Si 2FA activé → vérifier le code ─────────────────
+      if (dbUser.two_factor_enabled) {
+        const { twoFactorCode } = body;
+
+        if (!twoFactorCode) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "2FA code is required",
+              requires2FA: true,
+            },
+            { status: 400 }
+          );
+        }
+
+        const cleanCode = twoFactorCode.replace(/[\s\-]/g, "").trim();
+
+        // Vérifier code TOTP (6 chiffres)
+        let isValidTotp = false;
+        if (/^\d{6}$/.test(cleanCode)) {
+          try {
+            const totpResult = verifySync({
+              token: cleanCode,
+              secret: dbUser.two_factor_secret,
+            });
+            isValidTotp = totpResult.valid;
+          } catch {
+            isValidTotp = false;
+          }
+        }
+
+        // Vérifier backup code
+        const backupCodes: string[] = dbUser.two_factor_backup_codes || [];
+        const backupIndex = backupCodes.findIndex(
+          (c: string) => c.trim().toUpperCase() === cleanCode.toUpperCase()
+        );
+        const isBackupCode = backupIndex !== -1;
+
+        if (!isValidTotp && !isBackupCode) {
+          return NextResponse.json(
+            { success: false, error: "Invalid 2FA code" },
+            { status: 400 }
+          );
+        }
+
+        // Retirer backup code si utilisé
+        if (isBackupCode) {
+          const updatedCodes = backupCodes.filter(
+            (_: string, i: number) => i !== backupIndex
+          );
+          await User.findByIdAndUpdate(dbUser._id, {
+            two_factor_backup_codes: updatedCodes,
+          });
+        }
       }
 
       const salt = await bcryptjs.genSalt(12);

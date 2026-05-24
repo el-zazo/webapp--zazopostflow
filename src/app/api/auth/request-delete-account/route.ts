@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
+import { verifySync } from "otplib";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { requireAuth } from "@/lib/auth";
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { user } = auth;
 
-    const { password } = await request.json();
+    const { password, twoFactorCode } = await request.json();
 
     if (!password) {
       return NextResponse.json(
@@ -39,6 +40,60 @@ export async function POST(request: NextRequest) {
         { success: false, error: "Incorrect password" },
         { status: 400 }
       );
+    }
+
+    // ── Si 2FA activé → vérifier le code ─────────────────
+    if (fullUser.two_factor_enabled) {
+      if (!twoFactorCode) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "2FA code is required",
+            requires2FA: true,
+          },
+          { status: 400 }
+        );
+      }
+
+      const cleanCode = twoFactorCode.replace(/[\s\-]/g, "").trim();
+
+      // Vérifier code TOTP (6 chiffres)
+      let isValidTotp = false;
+      if (/^\d{6}$/.test(cleanCode)) {
+        try {
+          const totpResult = verifySync({
+            token: cleanCode,
+            secret: fullUser.two_factor_secret,
+          });
+          isValidTotp = totpResult.valid;
+        } catch {
+          isValidTotp = false;
+        }
+      }
+
+      // Vérifier backup code
+      const backupCodes: string[] = fullUser.two_factor_backup_codes || [];
+      const backupIndex = backupCodes.findIndex(
+        (c: string) => c.trim().toUpperCase() === cleanCode.toUpperCase()
+      );
+      const isBackupCode = backupIndex !== -1;
+
+      if (!isValidTotp && !isBackupCode) {
+        return NextResponse.json(
+          { success: false, error: "Invalid 2FA code" },
+          { status: 400 }
+        );
+      }
+
+      // Retirer backup code si utilisé
+      if (isBackupCode) {
+        const updatedCodes = backupCodes.filter(
+          (_: string, i: number) => i !== backupIndex
+        );
+        await User.findByIdAndUpdate(fullUser._id, {
+          two_factor_backup_codes: updatedCodes,
+        });
+      }
     }
 
     // Generate deletion token (expires 1h)
