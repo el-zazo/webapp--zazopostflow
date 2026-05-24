@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticator } from "otplib";
+import { authenticator } from "otplib/authenticator";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { signToken, createAuthResponse } from "@/lib/auth";

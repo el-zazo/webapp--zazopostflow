@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticator } from "otplib";
+import { authenticator } from "otplib/authenticator";
 import QRCode from "qrcode";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
