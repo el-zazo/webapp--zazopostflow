@@ -11,6 +11,7 @@ import {
   EyeOff,
   Loader2,
   AlertTriangle,
+  Key,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ interface TwoFactorSetupProps {
   onStatusChange: (enabled: boolean) => void;
 }
 
-type Step = "idle" | "setup" | "verify" | "backup-codes" | "disable";
+type Step = "idle" | "setup" | "verify" | "backup-codes" | "disable" | "view-backup-codes";
 
 export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProps) {
   const [step, setStep] = useState<Step>("idle");
@@ -44,9 +45,16 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
   const [secretCopied, setSecretCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // View Backup Codes states
+  const [viewBackupPassword, setViewBackupPassword] = useState("");
+  const [viewBackupCode, setViewBackupCode] = useState("");
+  const [viewedBackupCodes, setViewedBackupCodes] = useState<string[]>([]);
+  const [viewBackupError, setViewBackupError] = useState<string | null>(null);
+
   const { isLoading: isSettingUp, execute: executeSetup } = useAsyncAction();
   const { isLoading: isVerifying, execute: executeVerify } = useAsyncAction();
   const { isLoading: isDisabling, execute: executeDisable } = useAsyncAction();
+  const { isLoading: isViewingCodes, execute: executeViewCodes } = useAsyncAction();
 
   // ── Initier le setup 2FA ──────────────────────────────────
   const handleStartSetup = async () => {
@@ -118,6 +126,31 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
     });
   };
 
+  // ── Voir les backup codes ─────────────────────────────────
+  const handleViewBackupCodes = async () => {
+    if (!viewBackupPassword || !viewBackupCode) return;
+    setViewBackupError(null);
+
+    await executeViewCodes(async () => {
+      const res = await apiFetch("/api/auth/2fa/backup-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: viewBackupPassword,
+          code: viewBackupCode,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setViewedBackupCodes(data.data.backupCodes);
+      } else {
+        setViewBackupError(data.error || "Failed to retrieve backup codes");
+      }
+    });
+  };
+
   // ── Copier le secret ─────────────────────────────────────
   const handleCopySecret = async () => {
     try {
@@ -132,7 +165,10 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
   // ── Copier les backup codes ──────────────────────────────
   const handleCopyBackupCodes = async () => {
     try {
-      await navigator.clipboard.writeText(backupCodes.join("\n"));
+      // Copier selon le contexte actif (setup ou view)
+      const codesToCopy =
+        viewedBackupCodes.length > 0 ? viewedBackupCodes : backupCodes;
+      await navigator.clipboard.writeText(codesToCopy.join("\n"));
       setBackupCodesCopied(true);
       setTimeout(() => setBackupCodesCopied(false), 2000);
     } catch {
@@ -148,9 +184,15 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
     setShowSecret(false);
     setVerifyCode("");
     setBackupCodes([]);
+    setBackupCodesCopied(false);
     setDisablePassword("");
     setDisable2FACode("");
     setError(null);
+    // Reset view backup codes
+    setViewBackupPassword("");
+    setViewBackupCode("");
+    setViewedBackupCodes([]);
+    setViewBackupError(null);
   };
 
   return (
@@ -192,15 +234,36 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
           </Badge>
 
           {isEnabled ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive border-destructive/30 hover:bg-destructive/10"
-              onClick={() => { setError(null); setStep("disable"); }}
-            >
-              <ShieldOff className="w-3.5 h-3.5 mr-1.5" />
-              Disable
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Bouton View Backup Codes */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  setViewBackupError(null);
+                  setViewedBackupCodes([]);
+                  setViewBackupPassword("");
+                  setViewBackupCode("");
+                  setStep("view-backup-codes");
+                }}
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Backup Codes</span>
+                <span className="sm:hidden">Codes</span>
+              </Button>
+
+              {/* Bouton Disable */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => { setError(null); setStep("disable"); }}
+              >
+                <ShieldOff className="w-3.5 h-3.5 mr-1.5" />
+                Disable
+              </Button>
+            </div>
           ) : (
             <Button
               size="sm"
@@ -354,7 +417,7 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
         </DialogContent>
       </Dialog>
 
-      {/* ── DIALOG BACKUP CODES ── */}
+      {/* ── DIALOG BACKUP CODES (Setup) ── */}
       <Dialog
         open={step === "backup-codes"}
         onOpenChange={(open) => { if (!open) handleClose(); }}
@@ -498,6 +561,160 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── DIALOG VIEW BACKUP CODES ── */}
+      <Dialog
+        open={step === "view-backup-codes"}
+        onOpenChange={(open) => !open && handleClose()}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-orange-500" />
+              Your Backup Codes
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+
+            {viewedBackupCodes.length === 0 ? (
+              // ── Formulaire d'authentification ──
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Enter your password and current 2FA code to view your backup codes.
+                </p>
+
+                <div className="space-y-3">
+                  {/* Password */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Password</label>
+                    <Input
+                      type="password"
+                      placeholder="Enter your password"
+                      value={viewBackupPassword}
+                      onChange={(e) => {
+                        setViewBackupPassword(e.target.value);
+                        setViewBackupError(null);
+                      }}
+                    />
+                  </div>
+
+                  {/* 2FA Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      2FA Code
+                    </label>
+                    <Input
+                      placeholder="6-digit code"
+                      value={viewBackupCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setViewBackupCode(val);
+                        setViewBackupError(null);
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && handleViewBackupCodes()}
+                      className="text-center text-xl tracking-widest h-11 font-mono"
+                      maxLength={6}
+                    />
+                  </div>
+
+                  {viewBackupError && (
+                    <p className="text-xs text-destructive flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {viewBackupError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleClose}
+                    disabled={isViewingCodes}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleViewBackupCodes}
+                    disabled={
+                      isViewingCodes ||
+                      !viewBackupPassword ||
+                      viewBackupCode.length !== 6
+                    }
+                  >
+                    {isViewingCodes ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</>
+                    ) : (
+                      "View Codes"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // ── Afficher les backup codes ──
+              <div className="space-y-4">
+
+                {/* Warning */}
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                  <p className="text-xs text-yellow-400 font-medium flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    Keep these codes safe and secret
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Each code can only be used once to log in if you lose
+                    access to your authenticator app.
+                  </p>
+                </div>
+
+                {/* Count restant */}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {viewedBackupCodes.length}
+                    </span>{" "}
+                    backup codes remaining
+                  </p>
+                </div>
+
+                {/* Grille des codes */}
+                <div className="grid grid-cols-2 gap-2">
+                  {viewedBackupCodes.map((code, i) => (
+                    <div
+                      key={i}
+                      className="font-mono text-sm text-center py-2 px-3 bg-muted/50 rounded-lg border border-border text-foreground"
+                    >
+                      {code}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Boutons */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={handleCopyBackupCodes}
+                  >
+                    {backupCodesCopied ? (
+                      <><Check className="w-4 h-4 text-green-500" />Copied!</>
+                    ) : (
+                      <><Copy className="w-4 h-4" />Copy All</>
+                    )}
+                  </Button>
+                  <Button
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleClose}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

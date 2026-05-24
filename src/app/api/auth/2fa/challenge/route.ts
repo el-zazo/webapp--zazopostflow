@@ -25,21 +25,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cleanCode = code.replace(/\s/g, "");
+    // Nettoyer le code saisi (supprimer espaces, tirets)
+    const cleanCode = code.replace(/[\s\-]/g, "").trim();
 
-    // Vérifier code TOTP
-    const totpResult = verifySync({
-      token: cleanCode,
-      secret: user.two_factor_secret,
-    });
+    // ── Vérifier code TOTP (6 chiffres) ──────────────────
+    let isValidTotp = false;
+    if (/^\d{6}$/.test(cleanCode)) {
+      try {
+        const totpResult = verifySync({
+          token: cleanCode,
+          secret: user.two_factor_secret,
+        });
+        isValidTotp = totpResult.valid;
+      } catch {
+        isValidTotp = false;
+      }
+    }
 
-    // Vérifier backup code
-    const backupIndex = user.two_factor_backup_codes.indexOf(
-      cleanCode.toUpperCase()
+    // ── Vérifier backup code ──────────────────────────────
+    // Normaliser: uppercase + sans espaces
+    const normalizedInput = cleanCode.toUpperCase();
+
+    // Chercher dans la liste des backup codes
+    const backupCodes: string[] = user.two_factor_backup_codes || [];
+
+    // Comparaison normalisée: trim + uppercase des deux côtés
+    const backupIndex = backupCodes.findIndex(
+      (storedCode: string) =>
+        storedCode.trim().toUpperCase() === normalizedInput
     );
     const isBackupCode = backupIndex !== -1;
 
-    if (!totpResult.valid && !isBackupCode) {
+    console.log("[2FA Challenge] Input:", normalizedInput);
+    console.log("[2FA Challenge] Stored backup codes:", backupCodes);
+    console.log("[2FA Challenge] isValidTotp:", isValidTotp);
+    console.log("[2FA Challenge] isBackupCode:", isBackupCode, "index:", backupIndex);
+
+    if (!isValidTotp && !isBackupCode) {
       return NextResponse.json(
         { success: false, error: "Invalid authentication code" },
         { status: 400 }
@@ -48,15 +70,16 @@ export async function POST(request: NextRequest) {
 
     // Si backup code utilisé → le retirer de la liste
     if (isBackupCode) {
-      const updatedCodes = user.two_factor_backup_codes.filter(
+      const updatedCodes = backupCodes.filter(
         (_: string, index: number) => index !== backupIndex
       );
       await User.findByIdAndUpdate(user._id, {
         two_factor_backup_codes: updatedCodes,
       });
+      console.log("[2FA Challenge] Backup code used, remaining:", updatedCodes.length);
     }
 
-    // Générer le JWT final (même logique que le login normal)
+    // ── Générer le JWT final (même logique que le login normal) ──
     const token = signToken({
       userId: user._id.toString(),
       email: user.email,
@@ -78,7 +101,7 @@ export async function POST(request: NextRequest) {
         data: { user: userData },
         usedBackupCode: isBackupCode,
         remainingBackupCodes: isBackupCode
-          ? user.two_factor_backup_codes.length - 1
+          ? backupCodes.length - 1
           : undefined,
       },
       token
