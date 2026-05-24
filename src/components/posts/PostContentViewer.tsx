@@ -33,10 +33,23 @@ export function PostContentViewer({ post }: PostContentViewerProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // [FIX #16] Encapsulation dans try/catch de navigator.clipboard.writeText().
+  // Avant: L'appel était fait sans gestion d'erreur. navigator.clipboard.writeText()
+  // peut lever une exception dans plusieurs cas réels:
+  // - Page servie en HTTP (pas HTTPS) — fréquent en staging/dev
+  // - Document pas focusé (utilisateur a changé d'onglet)
+  // - Permissions du presse-papier refusées par le navigateur
+  // - Certains contextes Firefox
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(post.content || "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(post.content || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: sélectionner le texte dans le dialogue pour copie manuelle
+      // ou simplement ignorer silencieusement (le bouton ne fait rien)
+      setCopied(false);
+    }
   };
 
   const charCount = post.content?.length || 0;

@@ -4,7 +4,19 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+// ── [FIX #1] Suppression du fallback JWT secret ─────────────────────────
+// Avant: const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+// Si JWT_SECRET n'est pas défini, l'application doit refuser de démarrer
+// plutôt que de tourner avec une clé publique permettant le forgeage de JWT.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error(
+    "FATAL: JWT_SECRET environment variable is not set. " +
+    "Refusing to start with a hardcoded secret — this would allow anyone " +
+    "who reads the source code to forge valid authentication tokens."
+  );
+}
+
 const TOKEN_NAME = "postflow_token";
 const TOKEN_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
 
@@ -63,6 +75,32 @@ export function getTokenFromRequest(request: NextRequest): string | undefined {
   return request.cookies.get(TOKEN_NAME)?.value;
 }
 
+// ── [FIX #6] Vérification passwordChangedAt pour invalider les sessions ──
+// Après un changement de mot de passe, les anciens JWT doivent être
+// rejetés. On compare le champ `iat` du JWT avec `passwordChangedAt` du
+// document utilisateur. Si le token a été émis AVANT le changement de
+// mot de passe, l'authentification est refusée.
+
+/**
+ * Check if a JWT was issued before the user's last password change.
+ * Returns true if the token should be rejected (password was changed after token issuance).
+ */
+function isTokenOutdated(
+  decodedToken: JWTPayload,
+  passwordChangedAt: Date | undefined | null
+): boolean {
+  if (!passwordChangedAt) return false; // No password change recorded — token is valid
+
+  // JWT iat is in seconds since epoch; convert passwordChangedAt to the same unit
+  const iatSeconds = decodedToken.iat as number | undefined;
+  if (!iatSeconds) return false; // No iat claim — cannot determine, allow
+
+  const changedSeconds = Math.floor(new Date(passwordChangedAt).getTime() / 1000);
+
+  // Add a 1-second leeway to avoid timing edge cases
+  return iatSeconds + 1 < changedSeconds;
+}
+
 // ── Auth with DB verification ────────────────────────────────────────
 
 /**
@@ -72,6 +110,7 @@ export function getTokenFromRequest(request: NextRequest): string | undefined {
  *  - Token invalid/expired
  *  - User deleted from DB (even if token is valid)
  *  - User inactive (email not verified)
+ *  - [FIX #6] Password was changed after token was issued
  */
 export async function getAuthUser(): Promise<AuthUser | null> {
   try {
@@ -82,10 +121,10 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const payload = verifyToken(token);
     if (!payload?.userId) return null;
 
-    // Verify user exists in DB
+    // Verify user exists in DB — include passwordChangedAt for session invalidation
     await connectDB();
     const user = await User.findById(payload.userId)
-      .select("_id email username active")
+      .select("_id email username active passwordChangedAt")
       .lean();
 
     if (!user) {
@@ -98,13 +137,21 @@ export async function getAuthUser(): Promise<AuthUser | null> {
       return null;
     }
 
+    // [FIX #6] Reject token if password was changed after this token was issued
+    if (isTokenOutdated(payload, (user as Record<string, unknown>).passwordChangedAt as Date | undefined)) {
+      console.warn(`[Auth] JWT rejected — password changed after token issuance for user ${payload.userId}`);
+      return null;
+    }
+
+    const userId = (user as Record<string, unknown>)._id as { toString(): string };
+
     return {
-      _id: (user as any)._id.toString(),
-      id: (user as any)._id.toString(),
-      userId: (user as any)._id.toString(),
-      email: (user as any).email,
-      username: (user as any).username,
-      active: (user as any).active,
+      _id: userId.toString(),
+      id: userId.toString(),
+      userId: userId.toString(),
+      email: (user as Record<string, unknown>).email as string,
+      username: (user as Record<string, unknown>).username as string,
+      active: (user as Record<string, unknown>).active as boolean,
     };
   } catch (error) {
     console.error("[Auth] getAuthUser error:", error);
@@ -126,10 +173,10 @@ export async function getAuthUserFromRequest(
     const payload = verifyToken(token);
     if (!payload?.userId) return null;
 
-    // Verify user exists in DB
+    // Verify user exists in DB — include passwordChangedAt for session invalidation
     await connectDB();
     const user = await User.findById(payload.userId)
-      .select("_id email username active")
+      .select("_id email username active passwordChangedAt")
       .lean();
 
     if (!user) {
@@ -142,13 +189,21 @@ export async function getAuthUserFromRequest(
       return null;
     }
 
+    // [FIX #6] Reject token if password was changed after this token was issued
+    if (isTokenOutdated(payload, (user as Record<string, unknown>).passwordChangedAt as Date | undefined)) {
+      console.warn(`[Auth] JWT rejected — password changed after token issuance for user ${payload.userId}`);
+      return null;
+    }
+
+    const userId = (user as Record<string, unknown>)._id as { toString(): string };
+
     return {
-      _id: (user as any)._id.toString(),
-      id: (user as any)._id.toString(),
-      userId: (user as any)._id.toString(),
-      email: (user as any).email,
-      username: (user as any).username,
-      active: (user as any).active,
+      _id: userId.toString(),
+      id: userId.toString(),
+      userId: userId.toString(),
+      email: (user as Record<string, unknown>).email as string,
+      username: (user as Record<string, unknown>).username as string,
+      active: (user as Record<string, unknown>).active as boolean,
     };
   } catch (error) {
     console.error("[Auth] getAuthUserFromRequest error:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -53,6 +53,9 @@ export default function ProjectPostsPage() {
   const [limit, setLimit] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
 
+  // [FIX #9] Abort controller pour annuler les requêtes obsolètes
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const { isLoading: isUpdatingProject, execute: executeUpdateProject } = useAsyncAction();
   const { isLoading: isDeletingProject, execute: executeDeleteProject } = useAsyncAction();
   const { isLoading: isCreatingPost, execute: executeCreatePost } = useAsyncAction();
@@ -74,7 +77,7 @@ export default function ProjectPostsPage() {
     }
   }, [projectId, router, toast]);
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (currentPage: number, signal: AbortSignal) => {
     try {
       const queryParams = new URLSearchParams();
       queryParams.set("projectId", projectId);
@@ -84,34 +87,61 @@ export default function ProjectPostsPage() {
       if (search.trim()) queryParams.set("search", search.trim());
       queryParams.set("sortBy", sortBy);
       queryParams.set("sortOrder", sortOrder);
-      queryParams.set("page", page.toString());
+      queryParams.set("page", currentPage.toString());
       queryParams.set("limit", limit.toString());
 
-      const res = await apiFetch(`/api/posts?${queryParams.toString()}`);
+      const res = await apiFetch(`/api/posts?${queryParams.toString()}`, { signal });
       const data = await res.json();
+
+      if (signal.aborted) return;
 
       if (data.success) {
         setPosts(data.data);
         setTotalItems(data.pagination.totalItems);
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Failed to fetch posts:", error);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
-  }, [projectId, statusFilter, typeFilter, mediaFilter, search, sortBy, sortOrder, page, limit]);
+  }, [projectId, statusFilter, typeFilter, mediaFilter, search, sortBy, sortOrder, limit]);
 
   useEffect(() => {
     fetchProject();
   }, [fetchProject]);
 
+  // [FIX #9] Effet unique pour fetch posts avec annulation des requêtes obsolètes
   useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
-  // Reset page when filters change
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoading(true);
+    fetchPosts(page, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [fetchPosts, page]);
+
+  // [FIX #9] Réinitialiser la page quand les FILTRES changent (pas la page)
+  const filterDeps = [search, statusFilter, typeFilter, mediaFilter, sortBy, sortOrder];
+  const prevFilterDepsRef = useRef(filterDeps);
   useEffect(() => {
-    setPage(1);
+    const changed = filterDeps.some(
+      (dep, i) => dep !== prevFilterDepsRef.current[i]
+    );
+    if (changed) {
+      setPage(1);
+    }
+    prevFilterDepsRef.current = filterDeps;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter, typeFilter, mediaFilter, sortBy, sortOrder]);
 
   // hasActiveFilters + Reset
@@ -151,7 +181,7 @@ export default function ProjectPostsPage() {
         toast({ title: "Project updated successfully!" });
         setProjectFormOpen(false);
         fetchProject();
-        fetchPosts();
+        fetchPosts(page, abortControllerRef.current?.signal ?? new AbortController().signal);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }
@@ -185,7 +215,7 @@ export default function ProjectPostsPage() {
       if (result.success) {
         toast({ title: "Post created successfully!" });
         setFormOpen(false);
-        fetchPosts();
+        fetchPosts(page, abortControllerRef.current?.signal ?? new AbortController().signal);
         fetchProject();
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
@@ -209,7 +239,7 @@ export default function ProjectPostsPage() {
         toast({ title: "Post updated successfully!" });
         setEditingPost(null);
         setFormOpen(false);
-        fetchPosts();
+        fetchPosts(page, abortControllerRef.current?.signal ?? new AbortController().signal);
         fetchProject();
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
@@ -224,7 +254,7 @@ export default function ProjectPostsPage() {
 
       if (result.success) {
         toast({ title: "Post deleted successfully!" });
-        fetchPosts();
+        fetchPosts(page, abortControllerRef.current?.signal ?? new AbortController().signal);
         fetchProject();
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });

@@ -394,9 +394,13 @@ export function ProjectForm({ open, onClose, onSubmit, project }: ProjectFormPro
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
+                  {/* [FIX #11] defaultValue → value pour que form.reset()
+                      mette à jour l'affichage du Select lors de l'édition.
+                      Avant: defaultValue ne réagissait qu'au premier mount,
+                      donc un projet "archived" affichait toujours "Active". */}
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="bg-background border-border">

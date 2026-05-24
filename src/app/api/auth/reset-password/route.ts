@@ -43,10 +43,14 @@ export async function POST(request: NextRequest) {
     const salt = await bcryptjs.genSalt(12);
     const hashedPassword = await bcryptjs.hash(password, salt);
 
-    // Update user password and clear reset token
+    // Update user password, clear reset token, and record the change time
     user.password = hashedPassword;
     user.resetToken = null;
     user.resetTokenExpiry = null;
+    // [FIX #6] Enregistrer la date du changement de mot de passe.
+    // Les JWT émis avant cette date seront rejetés lors de la vérification
+    // dans getAuthUser / getAuthUserFromRequest (comparaison iat vs passwordChangedAt).
+    user.passwordChangedAt = new Date();
     await user.save();
 
     return NextResponse.json({

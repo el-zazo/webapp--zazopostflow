@@ -3,6 +3,8 @@ import dbConnect from "@/lib/mongodb";
 import Tag from "@/models/Tag";
 import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
+// [FIX #7] Import de la fonction d'échappement regex
+import { escapeRegExp } from "@/lib/utils";
 
 export async function PUT(
   request: NextRequest,
@@ -27,10 +29,15 @@ export async function PUT(
 
     const normalizedName = name.trim();
 
+    // [FIX #7] Échappement regex dans la vérification d'unicité.
+    // Avant: `^${normalizedName}$` vulnérable à l'injection regex si
+    // le nom du tag contient des métacaractères comme `(a+)+`.
+    const escapedName = escapeRegExp(normalizedName);
+
     // Vérifier unicité (même user, même nom, autre id)
     const existing = await Tag.findOne({
       user_id: user.userId,
-      name: { $regex: `^${normalizedName}$`, $options: "i" },
+      name: { $regex: `^${escapedName}$`, $options: "i" },
       _id: { $ne: id },
     });
 

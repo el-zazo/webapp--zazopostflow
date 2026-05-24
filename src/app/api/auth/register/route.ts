@@ -46,9 +46,15 @@ export async function POST(request: NextRequest) {
 
     await dbConnect();
 
-    // Check if user already exists
+    // [FIX #12] Normalisation du pseudo avant la vérification d'existence.
+    // Avant: Le username était cherché tel quel (avec espaces) mais
+    // inséré avec `.trim()`. Si "john" existait, " john " passait la
+    // vérification mais crashait sur l'index unique MongoDB (erreur 500).
+    // Maintenant: On trim le username AVANT la vérification de duplication.
+    const trimmedUsername = username.trim();
+
     const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase().trim() }, { username }],
+      $or: [{ email: email.toLowerCase().trim() }, { username: trimmedUsername }],
     });
 
     if (existingUser) {
@@ -96,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     // Create user with active: false
     const user = await User.create({
-      username: username.trim(),
+      username: trimmedUsername,
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       active: false,

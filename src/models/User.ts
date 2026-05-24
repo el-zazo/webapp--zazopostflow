@@ -14,6 +14,11 @@ export interface IUser extends Document {
   delete_account_requested_at: Date | null;
   resetToken: string | null;
   resetTokenExpiry: Date | null;
+  // [FIX #6] Champ pour l'invalidation des sessions après changement de mot de passe
+  // Quand un utilisateur réinitialise ou change son mot de passe, ce champ est
+  // mis à jour. Lors de la vérification du JWT, on compare `iat` du token
+  // avec `passwordChangedAt`. Si le token est antérieur, il est rejeté.
+  passwordChangedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +43,9 @@ const UserSchema = new Schema<IUser>(
     password: {
       type: String,
       required: [true, "Password is required"],
+      // Note: minlength validates the bcrypt hash (always 60+ chars), not the
+      // plaintext. Real password-length validation is done at the route level
+      // via Zod. This schema constraint is kept as a safety net only.
       minlength: [6, "Password must be at least 6 characters"],
     },
     avatar: {
@@ -78,6 +86,12 @@ const UserSchema = new Schema<IUser>(
       default: null,
     },
     resetTokenExpiry: {
+      type: Date,
+      default: null,
+    },
+    // [FIX #6] Date du dernier changement de mot de passe.
+    // Permet d'invalider les JWT émis avant ce changement.
+    passwordChangedAt: {
       type: Date,
       default: null,
     },

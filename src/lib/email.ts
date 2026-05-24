@@ -1,10 +1,31 @@
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+// [FIX #5] Suppression du fallback localhost pour APP_URL.
+// Avant: Si NEXT_PUBLIC_APP_URL n'était pas défini en production, les liens
+// dans les emails (vérification, reset password, suppression de compte)
+// pointaient vers http://localhost:3000, rendant ces liens inutilisables
+// pour les utilisateurs réels.
+// Maintenant: L'application lance une erreur explicite si cette variable
+// d'environnement est manquante en production.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+if (!APP_URL && process.env.NODE_ENV === "production") {
+  throw new Error(
+    "FATAL: NEXT_PUBLIC_APP_URL environment variable is not set. " +
+    "Email links (verification, password reset, account deletion) would " +
+    "point to an invalid URL. Refusing to send broken emails."
+  );
+}
+// En développement, on tolère le fallback localhost
+const RESOLVED_APP_URL = APP_URL || "http://localhost:3000";
+
+// [FIX #13] Import de la fonction d'échappement HTML.
+// Les pseudos utilisateurs sont interpolés directement dans les templates
+// HTML des emails sans nettoyage, permettant l'injection HTML.
+import { escapeHtml } from "@/lib/utils";
 
 export async function sendPasswordResetEmail(
   email: string,
   resetToken: string
 ): Promise<{ success: boolean; error?: string }> {
-  const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
+  const resetUrl = `${RESOLVED_APP_URL}/reset-password?token=${resetToken}`;
   const apiKey = process.env.BREVO_API_KEY;
   const fromEmail = process.env.BREVO_FROM_EMAIL || "noreply@postflow.dev";
 
@@ -76,7 +97,7 @@ export async function sendVerificationEmail(
   email: string,
   verificationToken: string
 ): Promise<{ success: boolean; error?: string }> {
-  const verifyUrl = `${APP_URL}/verify-email?token=${verificationToken}`;
+  const verifyUrl = `${RESOLVED_APP_URL}/verify-email?token=${verificationToken}`;
   const apiKey = process.env.BREVO_API_KEY;
   const fromEmail = process.env.BREVO_FROM_EMAIL || "noreply@postflow.dev";
 
@@ -160,9 +181,14 @@ export async function sendAccountDeletionEmail(
   username: string,
   deletionToken: string
 ): Promise<{ success: boolean; error?: string }> {
-  const confirmUrl = `${APP_URL}/confirm-delete-account?token=${deletionToken}`;
+  const confirmUrl = `${RESOLVED_APP_URL}/confirm-delete-account?token=${deletionToken}`;
   const apiKey = process.env.BREVO_API_KEY;
   const fromEmail = process.env.BREVO_FROM_EMAIL || "noreply@postflow.dev";
+
+  // [FIX #13] Échappement HTML du pseudo pour empêcher l'injection HTML
+  // dans les emails. Avant: ${username} était interpolé tel quel, permettant
+  // à un pseudo comme <b>admin</b> d'être rendu en HTML dans l'email.
+  const safeUsername = escapeHtml(username);
 
   try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -203,7 +229,7 @@ export async function sendAccountDeletionEmail(
                 <div class="logo">&#9889; PostFlow</div>
                 <h1 class="title">Account Deletion Request</h1>
                 <p class="subtitle">
-                  Hi <strong style="color:#fafafa;">${username}</strong>, we received a request
+                  Hi <strong style="color:#fafafa;">${safeUsername}</strong>, we received a request
                   to permanently delete your PostFlow account.
                 </p>
 

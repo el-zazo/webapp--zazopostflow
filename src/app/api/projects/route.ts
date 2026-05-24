@@ -6,6 +6,8 @@ import Project from "@/models/Project";
 import Post from "@/models/Post";
 import Tag from "@/models/Tag";
 import { requireAuth } from "@/lib/auth";
+// [FIX #7] Import de la fonction d'échappement regex
+import { escapeRegExp } from "@/lib/utils";
 
 const projectCreateSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
@@ -39,6 +41,20 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10")));
     const skip = (page - 1) * limit;
 
+    // [FIX #15] Validation des ObjectId dans le paramètre tags.
+    // Avant: Des tags invalides comme ?tags=foo,bar provoquaient une
+    // exception BSONTypeError dans `new mongoose.Types.ObjectId("foo")`,
+    // causant un 500. Maintenant: on valide chaque ID et on retourne 400
+    // si un ID est invalide.
+    for (const tagId of tagIds) {
+      if (!mongoose.Types.ObjectId.isValid(tagId)) {
+        return NextResponse.json(
+          { success: false, error: `Invalid tag ID: "${tagId}". Each tag ID must be a valid 24-character hex string.` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Computed fields that require aggregation
     const computedFields = ["postsCount", "tagsCount"];
 
@@ -54,18 +70,20 @@ export async function GET(request: NextRequest) {
     // Build search conditions
     const andConditions: Record<string, unknown>[] = [];
 
-    // Search by project name or tag name (requires finding matching tag ObjectIds first)
+    // [FIX #7] Échappement regex dans la recherche de tags et de projets
     if (search) {
+      const escapedSearch = escapeRegExp(search);
+
       const matchingTags = await Tag.find({
         user_id: user.userId,
-        name: { $regex: search, $options: "i" },
+        name: { $regex: escapedSearch, $options: "i" },
       }).select("_id");
 
       const matchingTagIds = matchingTags.map((t) => t._id);
 
       andConditions.push({
         $or: [
-          { name: { $regex: search, $options: "i" } },
+          { name: { $regex: escapedSearch, $options: "i" } },
           ...(matchingTagIds.length > 0 ? [{ tags: { $in: matchingTagIds } }] : []),
         ],
       });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +35,15 @@ export default function ProjectsPage() {
   const [limit, setLimit] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
 
+  // [FIX #9] Abort controller pour annuler les requêtes obsolètes.
+  // Avant: Deux useEffect concurrents (fetchProjects + setPage(1)) causaient
+  // des appels HTTP concurrents. La réponse de la requête avec l'ancien
+  // numéro de page pouvait arriver après celle de la page 1, écrasant les
+  // bonnes données avec les mauvaises.
+  // Maintenant: Un AbortController annule toute requête en cours quand les
+  // filtres changent, garantissant que seule la dernière réponse est traitée.
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Fetch tags au mount
   useEffect(() => {
     const fetchTags = async () => {
@@ -42,51 +51,87 @@ export default function ProjectsPage() {
         const res = await apiFetch("/api/tags?limit=100");
         const data = await res.json();
         if (data.success) {
-          setAvailableTags(data.data.map((t: any) => ({
+          setAvailableTags(data.data.map((t: {_id: string; name: string}) => ({
             _id: t._id,
             name: t.name,
           })));
         }
-      } catch {}
+      } catch {
+        // Silently ignore — tags filter is non-critical
+      }
     };
     fetchTags();
   }, []);
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (currentPage: number, signal: AbortSignal) => {
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (status !== "all") params.set("status", status);
       params.set("sortBy", sortBy);
       params.set("sortOrder", sortOrder);
-      params.set("page", page.toString());
+      params.set("page", currentPage.toString());
       params.set("limit", limit.toString());
-      // ← Ajouter filtre tags
       if (selectedTagIds.length > 0) {
         params.set("tags", selectedTagIds.join(","));
       }
 
-      const res = await apiFetch(`/api/projects?${params.toString()}`);
+      const res = await apiFetch(`/api/projects?${params.toString()}`, { signal });
       const data = await res.json();
+
+      // Ne pas mettre à jour le state si la requête a été annulée
+      if (signal.aborted) return;
 
       if (data.success) {
         setProjects(data.data);
         setTotalItems(data.pagination.totalItems);
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      // Les erreurs d'annulation (AbortError) sont normales — ne pas logger
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Failed to fetch projects:", error);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
-  }, [search, status, sortBy, sortOrder, page, limit, selectedTagIds]);
+  }, [search, status, sortBy, sortOrder, limit, selectedTagIds]);
 
+  // [FIX #9] Effet unique pour la fetch des projets avec annulation.
+  // Quand les filtres changent, on annule la requête en cours, on
+  // réinitialise la page à 1, et on lance une nouvelle requête.
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    // Annuler toute requête précédente
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
-  // Reset page when filters change
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoading(true);
+    fetchProjects(page, controller.signal);
+
+    // Cleanup: annuler la requête si le composant est démonté ou si
+    // l'effet est relancé (changement de filtre/page)
+    return () => {
+      controller.abort();
+    };
+  }, [fetchProjects, page]);
+
+  // [FIX #9] Réinitialiser la page quand les FILTRES changent (pas la page).
+  // Séparé de l'effet de fetch pour éviter les dépendances circulaires.
+  const filterDeps = [search, status, sortBy, sortOrder, selectedTagIds];
+  const prevFilterDepsRef = useRef(filterDeps);
   useEffect(() => {
-    setPage(1);
+    const changed = filterDeps.some(
+      (dep, i) => dep !== prevFilterDepsRef.current[i]
+    );
+    if (changed) {
+      setPage(1);
+    }
+    prevFilterDepsRef.current = filterDeps;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, status, sortBy, sortOrder, selectedTagIds]);
 
   // hasActiveFilters + Reset
@@ -125,7 +170,7 @@ export default function ProjectsPage() {
       if (result.success) {
         toast({ title: "Project created successfully!" });
         setFormOpen(false);
-        fetchProjects();
+        fetchProjects(page, abortControllerRef.current?.signal ?? new AbortController().signal);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }
@@ -150,7 +195,7 @@ export default function ProjectsPage() {
         toast({ title: "Project updated successfully!" });
         setEditingProject(null);
         setFormOpen(false);
-        fetchProjects();
+        fetchProjects(page, abortControllerRef.current?.signal ?? new AbortController().signal);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }
@@ -164,7 +209,7 @@ export default function ProjectsPage() {
 
       if (result.success) {
         toast({ title: "Project deleted successfully!" });
-        fetchProjects();
+        fetchProjects(page, abortControllerRef.current?.signal ?? new AbortController().signal);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }

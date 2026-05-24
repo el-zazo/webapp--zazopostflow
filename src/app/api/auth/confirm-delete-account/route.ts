@@ -4,20 +4,38 @@ import User from "@/models/User";
 import Post from "@/models/Post";
 import Project from "@/models/Project";
 import Tag from "@/models/Tag";
+import { z } from "zod";
 
-export async function GET(request: NextRequest) {
+// [FIX #2] Changement de GET à POST pour la suppression de compte.
+// Avant: Un scanner d'email (Office 365 ATP, Slack, Discord, etc.) qui
+// précharge les liens des emails déclenchait automatiquement la suppression
+// du compte en suivant le lien GET. Avec POST, le navigateur ne peut pas
+// déclencher l'action automatiquement — seul un clic utilisateur sur un
+// formulaire soumettant en POST peut l'activer.
+
+const confirmDeleteSchema = z.object({
+  token: z.string().min(1, "Deletion token is required"),
+});
+
+export async function POST(request: NextRequest) {
   try {
     await dbConnect();
 
-    const { searchParams } = new URL(request.url);
-    const token = searchParams.get("token");
+    // [FIX #2] Le token est maintenant envoyé dans le corps de la requête (POST body)
+    // au lieu de l'URL query string, ce qui empêche les scanners d'emails de
+    // déclencher la suppression automatiquement.
+    const body = await request.json();
+    const validation = confirmDeleteSchema.safeParse(body);
 
-    if (!token) {
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
       return NextResponse.json(
-        { success: false, error: "Deletion token is required" },
+        { success: false, error: firstError.message },
         { status: 400 }
       );
     }
+
+    const { token } = validation.data;
 
     // Find user with this valid token
     const user = await User.findOne({

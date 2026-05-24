@@ -5,6 +5,8 @@ import dbConnect from "@/lib/mongodb";
 import Tag from "@/models/Tag";
 import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
+// [FIX #7] Import de la fonction d'échappement regex
+import { escapeRegExp } from "@/lib/utils";
 
 const tagCreateSchema = z.object({
   name: z
@@ -36,8 +38,9 @@ export async function GET(request: NextRequest) {
       user_id: new mongoose.Types.ObjectId(user.userId),
     };
 
+    // [FIX #7] Échappement regex dans la recherche de tags
     if (search) {
-      matchStage.name = { $regex: search, $options: "i" };
+      matchStage.name = { $regex: escapeRegExp(search), $options: "i" };
     }
 
     const pipeline: mongoose.PipelineStage[] = [
@@ -141,10 +144,15 @@ export async function POST(request: NextRequest) {
 
     await dbConnect();
 
+    // [FIX #7] Échappement regex dans la vérification d'unicité du tag.
+    // Avant: `^${validation.data.name}$` était vulnérable à l'injection regex.
+    const normalizedName = validation.data.name.trim();
+    const escapedName = escapeRegExp(normalizedName);
+
     // Check uniqueness case-insensitive
     const existing = await Tag.findOne({
       user_id: user.userId,
-      name: { $regex: `^${validation.data.name}$`, $options: "i" },
+      name: { $regex: `^${escapedName}$`, $options: "i" },
     });
 
     if (existing) {
@@ -156,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     const tag = await Tag.create({
       user_id: user.userId,
-      name: validation.data.name,
+      name: normalizedName,
     });
 
     const serialized = {

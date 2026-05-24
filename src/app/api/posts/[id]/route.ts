@@ -126,18 +126,26 @@ export async function PUT(
         : null;
     }
 
-    // Handle published_date based on status changes
+    // [FIX #4] Gestion correcte de published_date lors de la mise à jour.
+    // Avant: Si `status` n'était pas fourni dans le payload (optionnel via Zod),
+    // `validation.data.status` était `undefined`, ce qui tombait dans le `else`
+    // et mettait `published_date = null`, détruisant la date de publication
+    // d'un post publié lors d'un simple changement de nom.
+    // Maintenant: On ne modifie `published_date` QUE si le statut est
+    // explicitement fourni dans le payload.
     if (validation.data.status === "published") {
-      // If changing to published: use provided date, or today if none
+      // Si on passe explicitement à "published": utiliser la date fournie ou aujourd'hui
       if (validation.data.published_date) {
         updateData.published_date = new Date(validation.data.published_date);
       } else if (!existingPost.published_date) {
         updateData.published_date = new Date();
       }
-    } else {
-      // If changing away from published: clear published_date
+      // Si le post a déjà une published_date, on la conserve (pas de changement)
+    } else if (validation.data.status !== undefined) {
+      // Si le statut change explicitement vers draft/scheduled: effacer published_date
       updateData.published_date = null;
     }
+    // Si `status` n'est PAS fourni (undefined), on ne touche PAS à published_date
 
     // Handle media flags
     if (validation.data.has_videos !== undefined) {

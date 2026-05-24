@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { ReactNode } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ConfirmDialogProps {
   trigger: ReactNode;
@@ -27,6 +28,18 @@ interface ConfirmDialogProps {
   children?: ReactNode;
 }
 
+/**
+ * [FIX #10] ConfirmDialog avec contrôle de l'état d'ouverture.
+ *
+ * Avant: Le composant AlertDialog de Radix fermait le dialog immédiatement
+ * quand l'utilisateur cliquait sur AlertDialogAction, avant même que
+ * l'action asynchrone ne se termine. Si l'action échouait, le dialog
+ * était déjà fermé sans feedback d'erreur.
+ *
+ * Maintenant: Le dialog est contrôlé manuellement via `open`/`onOpenChange`.
+ * On ne le ferme QUE si l'action asynchrone réussit. En cas d'erreur,
+ * un toast s'affiche et le dialog reste ouvert pour permettre de réessayer.
+ */
 export function ConfirmDialog({
   trigger,
   title,
@@ -38,19 +51,39 @@ export function ConfirmDialog({
   children,
 }: ConfirmDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const loadingRef = useRef(false);
+  const { toast } = useToast();
 
-  const handleConfirm = async () => {
-    if (isLoading) return; // Double-click protection
+  const handleConfirm = async (e: React.MouseEvent) => {
+    // Empêcher le comportement par défaut de Radix (qui ferme le dialog)
+    e.preventDefault();
+
+    // Double-click protection via ref synchrone
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoading(true);
+
     try {
       await onConfirm();
+      // Succès → fermer le dialog
+      setOpen(false);
+    } catch (error) {
+      // Erreur → afficher un toast et garder le dialog ouvert
+      const message = error instanceof Error ? error.message : "An unexpected error occurred. Please try again.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
+      loadingRef.current = false;
       setIsLoading(false);
     }
   };
 
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent className="bg-card border-border">
         <AlertDialogHeader>

@@ -23,9 +23,14 @@ function ConfirmDeleteAccountContent() {
 
     const confirmDeletion = async () => {
       try {
-        const res = await fetch(
-          `/api/auth/confirm-delete-account?token=${token}`
-        );
+        // [FIX #2] Envoi du token via POST body au lieu d'un paramètre URL GET.
+        // Cela empêche les scanners d'emails (Outlook ATP, Slack, etc.) de
+        // déclencher la suppression en préchargeant le lien.
+        const res = await fetch("/api/auth/confirm-delete-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
         const data = await res.json();
 
         if (data.success) {

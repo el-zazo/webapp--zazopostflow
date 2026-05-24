@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Plus, Tags, Search, Trash2, X, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +80,9 @@ export default function TagsPage() {
   const [limit, setLimit] = useState(20);
   const [totalItems, setTotalItems] = useState(0);
 
+  // [FIX #9] Abort controller pour annuler les requêtes obsolètes
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // hasActiveFilters + Reset
   const hasActiveFilters =
     search !== "" ||
@@ -100,37 +103,64 @@ export default function TagsPage() {
     defaultValues: { name: "" },
   });
 
-  const fetchTags = useCallback(async () => {
+  const fetchTags = useCallback(async (currentPage: number, signal: AbortSignal) => {
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (filter !== "all") params.set("filter", filter);
       params.set("sortBy", sortBy);
       params.set("sortOrder", sortOrder);
-      params.set("page", page.toString());
+      params.set("page", currentPage.toString());
       params.set("limit", limit.toString());
 
-      const res = await apiFetch(`/api/tags?${params.toString()}`);
+      const res = await apiFetch(`/api/tags?${params.toString()}`, { signal });
       const data = await res.json();
+
+      if (signal.aborted) return;
 
       if (data.success) {
         setTags(data.data);
         setTotalItems(data.pagination.totalItems);
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Failed to fetch tags:", error);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
-  }, [search, filter, sortBy, sortOrder, page, limit]);
+  }, [search, filter, sortBy, sortOrder, limit]);
 
+  // [FIX #9] Effet unique pour fetch tags avec annulation des requêtes obsolètes
   useEffect(() => {
-    fetchTags();
-  }, [fetchTags]);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
-  // Reset page when filters change
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoading(true);
+    fetchTags(page, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [fetchTags, page]);
+
+  // [FIX #9] Réinitialiser la page quand les FILTRES changent
+  const filterDeps = [search, filter, sortBy, sortOrder];
+  const prevFilterDepsRef = useRef(filterDeps);
   useEffect(() => {
-    setPage(1);
+    const changed = filterDeps.some(
+      (dep, i) => dep !== prevFilterDepsRef.current[i]
+    );
+    if (changed) {
+      setPage(1);
+    }
+    prevFilterDepsRef.current = filterDeps;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, filter, sortBy, sortOrder]);
 
   const { isLoading: isCreating, execute: executeCreate } = useAsyncAction();
@@ -150,7 +180,7 @@ export default function TagsPage() {
         toast({ title: "Tag created successfully!" });
         setCreateOpen(false);
         createForm.reset({ name: "" });
-        fetchTags();
+        fetchTags(page, abortControllerRef.current?.signal ?? new AbortController().signal);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }
@@ -164,7 +194,7 @@ export default function TagsPage() {
 
       if (result.success) {
         toast({ title: "Tag deleted successfully!" });
-        fetchTags();
+        fetchTags(page, abortControllerRef.current?.signal ?? new AbortController().signal);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }

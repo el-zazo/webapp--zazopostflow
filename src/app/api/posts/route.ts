@@ -4,6 +4,8 @@ import dbConnect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
+// [FIX #7] Import de la fonction d'échappement regex
+import { escapeRegExp } from "@/lib/utils";
 
 const postCreateSchema = z.object({
   project_id: z.string().min(1, "Project ID is required"),
@@ -58,7 +60,22 @@ export async function GET(request: NextRequest) {
 
     const filter: Record<string, unknown> = { project_id: { $in: projectIds } };
 
+    // [FIX #3] Validation de l'appartenance du projectId.
+    // Avant: `filter.project_id = projectId` écrasait le filtre de
+    // propriété, permettant à n'importe quel utilisateur authentifié de
+    // lire les posts d'un projet ne lui appartenant pas (IDOR).
+    // Maintenant: on vérifie que le projectId demandé fait bien partie
+    // des projets de l'utilisateur avant de l'appliquer au filtre.
     if (projectId) {
+      const isOwner = projectIds.some(
+        (id) => id.toString() === projectId
+      );
+      if (!isOwner) {
+        return NextResponse.json(
+          { success: false, error: "Project not found" },
+          { status: 404 }
+        );
+      }
       filter.project_id = projectId;
     }
 
@@ -70,9 +87,11 @@ export async function GET(request: NextRequest) {
       filter.type = type;
     }
 
-    // Search filter on post name
+    // [FIX #7] Échappement des caractères regex dans la recherche.
+    // Avant: `search.trim()` était injecté directement dans `$regex`,
+    // permettant un ReDoS via des patterns comme `(a+)+$`.
     if (search && search.trim()) {
-      filter.name = { $regex: search.trim(), $options: "i" };
+      filter.name = { $regex: escapeRegExp(search.trim()), $options: "i" };
     }
 
     // Media filter
