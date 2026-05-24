@@ -17,12 +17,12 @@ export const metadata: Metadata = {
   title: "PostFlow - LinkedIn Post Manager for Developers",
   description:
     "Organize, schedule, and manage your LinkedIn posts across all your development projects.",
-  icons: {
-    icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/logo.svg", type: "image/svg+xml", sizes: "any" },
-    ],
-  },
+  // Les icônes sont désormais gérées automatiquement par les fichiers
+  // conventionnels Next.js :
+  //   - src/app/icon.tsx        → /icon (favicon PNG 32×32)
+  //   - src/app/apple-icon.tsx  → /apple-icon (PNG 180×180)
+  // Plus besoin de déclarer manuellement icons.metadata — Next.js injecte
+  // les balises <link rel="icon"> et <link rel="apple-touch-icon"> au build.
 };
 
 export default function RootLayout({
