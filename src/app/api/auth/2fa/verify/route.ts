@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticator } from "otplib/authenticator";
+import { verifySync } from "otplib";
 import crypto from "crypto";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
@@ -31,12 +31,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier le code TOTP
-    const isValid = authenticator.verify({
+    const result = verifySync({
       token: code,
       secret: fullUser.two_factor_secret,
     });
 
-    if (!isValid) {
+    if (!result.valid) {
       return NextResponse.json(
         { success: false, error: "Invalid verification code. Please try again." },
         { status: 400 }

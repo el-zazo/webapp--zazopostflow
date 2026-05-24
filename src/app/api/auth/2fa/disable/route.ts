@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticator } from "otplib/authenticator";
+import { verifySync } from "otplib";
 import bcryptjs from "bcryptjs";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Vérifier le code 2FA ou backup code (si fourni)
     if (code) {
       // Vérifier si c'est un code TOTP normal
-      const isValidTotp = authenticator.verify({
+      const totpResult = verifySync({
         token: code,
         secret: fullUser.two_factor_secret,
       });
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         code.toUpperCase()
       );
 
-      if (!isValidTotp && !isBackupCode) {
+      if (!totpResult.valid && !isBackupCode) {
         return NextResponse.json(
           { success: false, error: "Invalid 2FA code" },
           { status: 400 }

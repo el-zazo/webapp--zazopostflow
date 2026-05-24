@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticator } from "otplib/authenticator";
+import { generateSecret, generateURI } from "otplib";
 import QRCode from "qrcode";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Générer un nouveau secret TOTP
-    const secret = authenticator.generateSecret();
+    const secret = generateSecret();
 
     // Sauvegarder le secret (temporaire, pas encore activé)
     await User.findByIdAndUpdate(fullUser._id, {
@@ -39,12 +39,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Générer l'URL TOTP pour le QR code
-    const appName = "PostFlow";
-    const otpAuthUrl = authenticator.keyuri(
-      fullUser.email,
-      appName,
-      secret
-    );
+    const otpAuthUrl = generateURI({
+      issuer: "PostFlow",
+      label: fullUser.email,
+      secret,
+    });
 
     // Générer le QR code en base64
     const qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl, {
