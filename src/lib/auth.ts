@@ -8,7 +8,7 @@ import User from "@/models/User";
 // Avant: const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 // Si JWT_SECRET n'est pas défini, l'application doit refuser de démarrer
 // plutôt que de tourner avec une clé publique permettant le forgeage de JWT.
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET as string;
 if (!JWT_SECRET) {
   throw new Error(
     "FATAL: JWT_SECRET environment variable is not set. " +
@@ -49,7 +49,7 @@ export function signToken(payload: JWTPayload): string {
 
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return jwt.verify(token, JWT_SECRET) as unknown as JWTPayload;
   } catch {
     return null;
   }
