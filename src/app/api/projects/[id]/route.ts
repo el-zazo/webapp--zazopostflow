@@ -99,7 +99,7 @@ export async function PUT(
     const validation = projectUpdateSchema.safeParse(body);
 
     if (!validation.success) {
-      const firstError = validation.error.errors[0];
+      const firstError = validation.error.issues[0];
       return NextResponse.json(
         { success: false, error: firstError.message },
         { status: 400 }

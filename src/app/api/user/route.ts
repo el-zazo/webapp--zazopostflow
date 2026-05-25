@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest) {
     if (action === "profile") {
       const validation = updateProfileSchema.safeParse(body);
       if (!validation.success) {
-        const firstError = validation.error.errors[0];
+        const firstError = validation.error.issues[0];
         return NextResponse.json(
           { success: false, error: firstError.message },
           { status: 400 }
@@ -104,7 +104,7 @@ export async function PUT(request: NextRequest) {
     if (action === "password") {
       const validation = updatePasswordSchema.safeParse(body);
       if (!validation.success) {
-        const firstError = validation.error.errors[0];
+        const firstError = validation.error.issues[0];
         return NextResponse.json(
           { success: false, error: firstError.message },
           { status: 400 }
@@ -205,7 +205,7 @@ export async function PUT(request: NextRequest) {
     if (action === "theme") {
       const validation = updateThemeSchema.safeParse(body);
       if (!validation.success) {
-        const firstError = validation.error.errors[0];
+        const firstError = validation.error.issues[0];
         return NextResponse.json(
           { success: false, error: firstError.message },
           { status: 400 }
