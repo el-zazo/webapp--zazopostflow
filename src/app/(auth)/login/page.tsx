@@ -140,7 +140,11 @@ function LoginContent() {
       };
 
       if (result.success) {
-        if (result.usedBackupCode && result.remainingBackupCodes < 3) {
+        if (
+          result.usedBackupCode && 
+          result.remainingBackupCodes !== undefined && 
+          result.remainingBackupCodes < 3
+        ) {
           toast({
             title: "Backup code used",
             description: `${result.remainingBackupCodes} backup codes remaining.`,
