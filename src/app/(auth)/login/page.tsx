@@ -93,7 +93,7 @@ function LoginContent() {
       // ── 2FA : Si le backend demande un code 2FA ──
       if (result.requires2FA) {
         setRequires2FA(true);
-        setTwoFactorUserId(result.userId);
+        setTwoFactorUserId(result.userId || "");
         return;
       }
 
