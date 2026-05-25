@@ -28,7 +28,7 @@ export function useDatePickerPosts(year: number, month: number) {
       const res = await apiFetch(
         `/api/posts/calendar?year=${year}&month=${month}`
       );
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; data: PostsByDay };
 
       if (data.success) {
         setPostsByDay(data.data);
