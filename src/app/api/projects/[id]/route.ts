@@ -47,7 +47,7 @@ export async function GET(
       ...project,
       _id: project._id.toString(),
       user_id: project.user_id.toString(),
-      tags: (project.tags as Array<{ _id: unknown; name: string }>).map((t) => ({
+      tags: (project.tags as Array<{ _id: { toString(): string } | string; name: string }>).map((t) => ({
         _id: t._id.toString(),
         name: t.name,
       })),
