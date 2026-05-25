@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     await dbConnect();
 
@@ -118,12 +118,12 @@ export async function GET(request: NextRequest) {
     const totalItems = result[0]?.total[0]?.count || 0;
     const totalPages = Math.ceil(totalItems / limit);
 
-    const serialized = tags.map((t: Record<string, unknown>) => ({
+    const serialized = tags.map((t: any) => ({
       ...t,
-      _id: (t._id as { toString: () => string }).toString(),
-      user_id: (t.user_id as { toString: () => string }).toString(),
-      createdAt: (t.createdAt as Date)?.toISOString?.(),
-      updatedAt: (t.updatedAt as Date)?.toISOString?.(),
+      _id: t._id.toString(),
+      user_id: t.user_id.toString(),
+      createdAt: t.createdAt?.toISOString?.(),
+      updatedAt: t.updatedAt?.toISOString?.(),
     }));
 
     return NextResponse.json({
@@ -168,9 +168,9 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
-    const body = await request.json();
+    const body = (await request.json()) as unknown;
     const validation = tagCreateSchema.safeParse(body);
 
     if (!validation.success) {

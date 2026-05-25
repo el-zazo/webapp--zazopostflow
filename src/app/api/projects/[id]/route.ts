@@ -22,7 +22,7 @@ export async function GET(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     const { id } = await params;
     await dbConnect();
@@ -47,7 +47,7 @@ export async function GET(
       ...project,
       _id: project._id.toString(),
       user_id: project.user_id.toString(),
-      tags: (project.tags as Array<{ _id: { toString(): string } | string; name: string }>).map((t) => ({
+      tags: (project.tags as Array<{ _id: any; name: string }>).map((t) => ({
         _id: t._id.toString(),
         name: t.name,
       })),
@@ -92,10 +92,10 @@ export async function PUT(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     const { id } = await params;
-    const body = await request.json();
+    const body = (await request.json()) as unknown;
     const validation = projectUpdateSchema.safeParse(body);
 
     if (!validation.success) {
@@ -128,7 +128,7 @@ export async function PUT(
       ...project.toObject(),
       _id: project._id.toString(),
       user_id: project.user_id.toString(),
-      tags: (project.tags as Array<{ _id: unknown; name: string }>).map((t) => ({
+      tags: (project.tags as Array<{ _id: any; name: string }>).map((t) => ({
         _id: t._id.toString(),
         name: t.name,
       })),
@@ -172,7 +172,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     const { id } = await params;
     await dbConnect();

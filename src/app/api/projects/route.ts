@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     await dbConnect();
 
@@ -184,16 +184,16 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.ceil(totalItems / limit);
 
     // Normalize: aggregate returns ObjectId, frontend expects string
-    const serialized = projects.map((p: Record<string, unknown>) => ({
+    const serialized = projects.map((p: any) => ({
       ...p,
-      _id: (p._id as { toString: () => string }).toString(),
-      user_id: (p.user_id as { toString: () => string })?.toString?.(),
-      tags: (p.tags as Array<Record<string, unknown>>)?.map((t) => ({
-        _id: (t._id as { toString: () => string }).toString(),
+      _id: p._id.toString(),
+      user_id: p.user_id?.toString?.(),
+      tags: (p.tags as any[])?.map((t: any) => ({
+        _id: t._id.toString(),
         name: t.name,
       })) || [],
-      createdAt: (p.createdAt as Date)?.toISOString?.(),
-      updatedAt: (p.updatedAt as Date)?.toISOString?.(),
+      createdAt: p.createdAt?.toISOString?.(),
+      updatedAt: p.updatedAt?.toISOString?.(),
     }));
 
     return NextResponse.json({
@@ -238,9 +238,9 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
-    const body = await request.json();
+    const body = (await request.json()) as unknown;
     const validation = projectCreateSchema.safeParse(body);
 
     if (!validation.success) {
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
       ...project.toObject(),
       _id: project._id.toString(),
       user_id: project.user_id.toString(),
-      tags: (project.tags as Array<{ _id: unknown; name: string }>).map((t) => ({
+      tags: (project.tags as Array<{ _id: any; name: string }>).map((t) => ({
         _id: t._id.toString(),
         name: t.name,
       })),

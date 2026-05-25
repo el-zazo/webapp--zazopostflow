@@ -33,12 +33,12 @@ export async function PUT(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     await dbConnect();
 
     const { id } = await params;
-    const { name } = await request.json();
+    const { name } = (await request.json()) as { name?: string };
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -130,7 +130,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     await dbConnect();
 

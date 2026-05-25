@@ -53,7 +53,7 @@ export function Sidebar() {
     const fetchUser = async () => {
       try {
         const res = await apiFetch("/api/auth/me");
-        const data = await res.json();
+        const data = (await res.json()) as { success: boolean; data?: { user?: { username?: string } } };
         if (data.success && data.data?.user?.username) {
           setUsername(data.data.user.username);
         }

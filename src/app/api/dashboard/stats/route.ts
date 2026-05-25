@@ -8,14 +8,14 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     await dbConnect();
 
     const userId = user.userId;
 
     // Get all user project IDs - with fallback
-    let projectIds: import("mongoose").Types.ObjectId[] = [];
+    let projectIds: any[] = [];
     try {
       const userProjects = await Project.find({ user_id: userId }).select("_id");
       projectIds = userProjects.map((p) => p._id);

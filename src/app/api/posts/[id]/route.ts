@@ -25,14 +25,14 @@ export async function GET(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     const { id } = await params;
     await dbConnect();
 
-    const post = await Post.findById(id)
+    const post = (await Post.findById(id)
       .populate("project_id", "name user_id")
-      .lean();
+      .lean()) as any;
 
     if (!post) {
       return NextResponse.json(
@@ -101,10 +101,10 @@ export async function PUT(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     const { id } = await params;
-    const body = await request.json();
+    const body = (await request.json()) as unknown;
     const validation = postUpdateSchema.safeParse(body);
 
     if (!validation.success) {
@@ -226,7 +226,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     const { id } = await params;
     await dbConnect();

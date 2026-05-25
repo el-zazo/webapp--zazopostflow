@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
     await dbConnect();
 
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(totalItems / limit);
 
-    const serialized = posts.map((p) => ({
+    const serialized = posts.map((p: any) => ({
       ...p,
       _id: p._id.toString(),
       project_id: p.project_id._id
@@ -214,9 +214,9 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
-    const body = await request.json();
+    const body = (await request.json()) as unknown;
     const validation = postCreateSchema.safeParse(body);
 
     if (!validation.success) {

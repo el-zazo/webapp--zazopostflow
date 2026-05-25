@@ -321,7 +321,7 @@ export function PostDatePicker({
                     {/* Points indicateurs sous le jour */}
                     {hasFilteredPosts && (
                       <div className="flex gap-0.5 mt-0.5 justify-center">
-                        {dayPosts.slice(0, 3).map((post, idx) => (
+                        {dayPosts.slice(0, 3).map((post: any, idx: number) => (
                           <div
                             key={idx}
                             className={cn(
@@ -386,7 +386,7 @@ export function PostDatePicker({
                   className="overflow-y-auto max-h-[200px] px-4 pb-3 space-y-2"
                   style={{ overflowY: "auto" }}
                 >
-                  {activeDayPosts.map((post) => (
+                  {activeDayPosts.map((post: any) => (
                     <div
                       key={post._id}
                       className="bg-card rounded-lg p-2.5 border border-border overflow-hidden space-y-1.5"

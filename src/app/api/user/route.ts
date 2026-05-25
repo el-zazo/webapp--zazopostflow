@@ -51,9 +51,9 @@ export async function PUT(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId: string } };
 
-    const body = await request.json();
+    const body = (await request.json()) as any;
     const { action } = body;
 
     await dbConnect();
@@ -83,19 +83,19 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      const dbUser = await User.findByIdAndUpdate(
+      const dbUser = (await User.findByIdAndUpdate(
         user.userId,
         validation.data,
         { new: true, runValidators: true }
-      ).select("-password -resetToken -resetTokenExpiry -email_verification_token -email_verification_expires");
+      ).select("-password -resetToken -resetTokenExpiry -email_verification_token -email_verification_expires")) as any;
 
       return NextResponse.json({
         success: true,
         data: {
-          ...dbUser!.toObject(),
-          _id: dbUser!._id.toString(),
-          createdAt: dbUser!.createdAt?.toISOString(),
-          updatedAt: dbUser!.updatedAt?.toISOString(),
+          ...dbUser.toObject(),
+          _id: dbUser._id.toString(),
+          createdAt: dbUser.createdAt?.toISOString(),
+          updatedAt: dbUser.updatedAt?.toISOString(),
         },
       });
     }

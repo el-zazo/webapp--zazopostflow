@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   const auth = await requireAuth(request);
   if ("error" in auth) return auth.error;
-  const { user } = auth;
+  const { user } = auth as { user: { userId: string } };
 
   try {
     await dbConnect();
@@ -72,8 +72,8 @@ export async function GET(request: NextRequest) {
     const postsByDay: Record<string, any[]> = {};
 
     for (const post of posts) {
-      const dateToUse =
-        (post as any).scheduled_date || (post as any).published_date;
+      const p = post as any;
+      const dateToUse = p.scheduled_date || p.published_date;
       if (!dateToUse) continue;
 
       const day = new Date(dateToUse).getDate();
@@ -82,13 +82,13 @@ export async function GET(request: NextRequest) {
       if (!postsByDay[key]) postsByDay[key] = [];
 
       postsByDay[key].push({
-        _id: (post as any)._id.toString(),
-        name: (post as any).name || "Untitled",
-        status: (post as any).status,
-        type: (post as any).type || "main",
-        has_images: (post as any).has_images || false,
-        has_videos: (post as any).has_videos || false,
-        project_name: (post as any).project_id?.name || "Unknown",
+        _id: p._id.toString(),
+        name: p.name || "Untitled",
+        status: p.status,
+        type: p.type || "main",
+        has_images: p.has_images || false,
+        has_videos: p.has_videos || false,
+        project_name: p.project_id?.name || "Unknown",
         date: new Date(dateToUse).toISOString(),
       });
     }
