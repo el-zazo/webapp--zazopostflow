@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // [FIX #2] Le token est maintenant envoyé dans le corps de la requête (POST body)
     // au lieu de l'URL query string, ce qui empêche les scanners d'emails de
     // déclencher la suppression automatiquement.
-    const body = await request.json();
+    const body = await request.json() as unknown;
     const validation = confirmDeleteSchema.safeParse(body);
 
     if (!validation.success) {

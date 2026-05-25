@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const userId = user.userId;
 
     // Get all user project IDs - with fallback
-    let projectIds: import("mongoose").Types.ObjectId[] = [];
+    let projectIds: any[] = [];
     try {
       const userProjects = await Project.find({ user_id: userId }).select("_id");
       projectIds = userProjects.map((p) => p._id);

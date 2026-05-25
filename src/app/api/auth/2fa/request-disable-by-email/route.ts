@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
-    const { user } = auth;
+    const { user } = auth as { user: { userId?: string } };
 
     // Get full user document
     const fullUser = await User.findById(user.userId);

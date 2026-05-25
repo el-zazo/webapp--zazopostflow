@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     await dbConnect();
 
     // Fetch full user data from DB (authUser already verified existence)
-    const dbUser = await User.findById(authUser.userId)
-      .select("-password -resetToken -resetTokenExpiry -email_verification_token -email_verification_expires -delete_account_token -delete_account_expires -delete_account_requested_at -two_factor_secret -two_factor_backup_codes -disable_2fa_token -disable_2fa_expires");
+    const dbUser = (await User.findById(authUser.userId)
+      .select("-password -resetToken -resetTokenExpiry -email_verification_token -email_verification_expires -delete_account_token -delete_account_expires -delete_account_requested_at -two_factor_secret -two_factor_backup_codes -disable_2fa_token -disable_2fa_expires")) as any;
 
     if (!dbUser) {
       return NextResponse.json(
