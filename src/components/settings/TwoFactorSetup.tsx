@@ -12,6 +12,7 @@ import {
   Loader2,
   AlertTriangle,
   Key,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,17 +24,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
+import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api-client";
 import { RegenerateBackupCodes } from "./RegenerateBackupCodes";
 
 interface TwoFactorSetupProps {
   isEnabled: boolean;
+  email: string;
   onStatusChange: (enabled: boolean) => void;
 }
 
 type Step = "idle" | "setup" | "verify" | "backup-codes" | "disable" | "view-backup-codes";
 
-export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProps) {
+export function TwoFactorSetup({ isEnabled, email, onStatusChange }: TwoFactorSetupProps) {
   const [step, setStep] = useState<Step>("idle");
   const [qrCode, setQrCode] = useState("");
   const [secret, setSecret] = useState("");
@@ -53,10 +56,17 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
   const [viewedBackupCodes, setViewedBackupCodes] = useState<string[]>([]);
   const [viewBackupError, setViewBackupError] = useState<string | null>(null);
 
+  const { toast } = useToast();
+
+  // Email fallback states
+  const [showEmailFallback, setShowEmailFallback] = useState(false);
+  const [emailFallbackSent, setEmailFallbackSent] = useState(false);
+
   const { isLoading: isSettingUp, execute: executeSetup } = useAsyncAction();
   const { isLoading: isVerifying, execute: executeVerify } = useAsyncAction();
   const { isLoading: isDisabling, execute: executeDisable } = useAsyncAction();
   const { isLoading: isViewingCodes, execute: executeViewCodes } = useAsyncAction();
+  const { isLoading: isSendingEmailFallback, execute: executeEmailFallback } = useAsyncAction();
 
   // ── Initier le setup 2FA ──────────────────────────────────
   const handleStartSetup = async () => {
@@ -179,6 +189,31 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
     }
   };
 
+  // ── Envoyer email de désactivation 2FA ───────────────────
+  const handleRequestDisableByEmail = async () => {
+    await executeEmailFallback(async () => {
+      const res = await apiFetch("/api/auth/2fa/request-disable-by-email", {
+        method: "POST",
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setEmailFallbackSent(true);
+        toast({
+          title: "Email sent",
+          description: "Check your inbox for a link to disable 2FA.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to send email",
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
   // ── Reset état ───────────────────────────────────────────
   const handleClose = () => {
     setStep("idle");
@@ -197,6 +232,9 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
     setViewBackupCode("");
     setViewedBackupCodes([]);
     setViewBackupError(null);
+    // Reset email fallback
+    setShowEmailFallback(false);
+    setEmailFallbackSent(false);
   };
 
   return (
@@ -565,6 +603,64 @@ export function TwoFactorSetup({ isEnabled, onStatusChange }: TwoFactorSetupProp
                   "Disable 2FA"
                 )}
               </Button>
+            </div>
+
+            {/* ── Email Fallback ────────────────────────────────── */}
+            <div className="border-t border-border pt-3">
+              {!showEmailFallback ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEmailFallback(true)}
+                  className="text-xs text-muted-foreground hover:text-orange-500 transition-colors underline underline-offset-2"
+                >
+                  I don&apos;t have access to my authenticator app
+                </button>
+              ) : !emailFallbackSent ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Mail className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        We&apos;ll send an email to{" "}
+                        <span className="text-foreground font-medium">{email}</span>{" "}
+                        with a link to disable 2FA.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={handleRequestDisableByEmail}
+                    disabled={isSendingEmailFallback}
+                  >
+                    {isSendingEmailFallback ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" />Sending...</>
+                    ) : (
+                      <><Mail className="w-3.5 h-3.5" />Send email</>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Mail className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-foreground">
+                        Confirmation email sent
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Check your inbox at{" "}
+                        <span className="text-orange-500 font-medium">{email}</span>{" "}
+                        and click the link to disable 2FA.
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        The link expires in 1 hour.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </DialogContent>

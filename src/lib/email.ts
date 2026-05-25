@@ -176,6 +176,106 @@ export async function sendVerificationEmail(
   }
 }
 
+export async function sendDisable2FAEmail(
+  email: string,
+  username: string,
+  token: string
+): Promise<{ success: boolean; error?: string }> {
+  const disableUrl = `${RESOLVED_APP_URL}/api/auth/2fa/disable-by-email?token=${token}`;
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || "noreply@postflow.dev";
+
+  // [FIX #13] Échappement HTML du pseudo pour empêcher l'injection HTML
+  const safeUsername = escapeHtml(username);
+
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": apiKey || "",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: "PostFlow", email: fromEmail },
+        to: [{ email }],
+        subject: "PostFlow - Disable Two-Factor Authentication",
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; background-color: #0a0a0a; color: #fafafa; margin: 0; padding: 0; }
+              .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+              .card { background: #171717; border: 1px solid #262626; border-radius: 12px; padding: 32px; }
+              .logo { font-size: 20px; font-weight: bold; color: #f97316; margin-bottom: 24px; }
+              .title { font-size: 24px; font-weight: bold; margin: 0 0 8px 0; color: #fafafa; }
+              .subtitle { color: #a3a3a3; margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; }
+              .button { display: inline-block; background: #f97316; color: #ffffff !important; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 8px 0 20px 0; }
+              .url-box { background: #262626; border-radius: 6px; padding: 12px; word-break: break-all; font-size: 12px; color: #a3a3a3; margin-top: 16px; }
+              .expire { font-size: 13px; color: #737373; margin-top: 16px; padding-top: 16px; border-top: 1px solid #262626; }
+              .ignore { font-size: 13px; color: #737373; margin-top: 12px; }
+              .footer { margin-top: 24px; font-size: 12px; color: #525252; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="card">
+                <div class="logo">&#9889; PostFlow</div>
+                <h1 class="title">Disable Two-Factor Authentication</h1>
+                <p class="subtitle">
+                  Hi <strong style="color:#fafafa;">${safeUsername}</strong>, we received a request
+                  to disable two-factor authentication on your PostFlow account.
+                </p>
+
+                <p style="color:#a3a3a3; font-size:14px; margin-bottom:16px;">
+                  If you made this request, click the button below to disable 2FA:
+                </p>
+
+                <a href="${disableUrl}" class="button">
+                  Disable 2FA
+                </a>
+
+                <div class="expire">
+                  &#9201;&#65039; This link expires in <strong style="color:#fafafa;">1 hour</strong>.
+                  After that, your 2FA will remain active.
+                </div>
+
+                <div class="ignore">
+                  &#128274; If you did NOT request this change, your account is safe.
+                  Simply ignore this email — your 2FA will stay enabled.
+                </div>
+
+                <div class="url-box">
+                  If the button doesn't work, copy this link:<br/>
+                  ${disableUrl}
+                </div>
+              </div>
+              <div class="footer">
+                PostFlow - LinkedIn Post Manager for Developers
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Brevo disable 2FA email error:", errorText);
+      return { success: false, error: "Failed to send disable 2FA email" };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to send email",
+    };
+  }
+}
+
 export async function sendAccountDeletionEmail(
   email: string,
   username: string,

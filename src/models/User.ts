@@ -23,6 +23,9 @@ export interface IUser extends Document {
   two_factor_secret: string | null;
   two_factor_enabled: boolean;
   two_factor_backup_codes: string[];
+  // ── 2FA disable-by-email fallback ────────────────────────────────────
+  disable_2fa_token: string | null;
+  disable_2fa_expires: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -111,6 +114,15 @@ const UserSchema = new Schema<IUser>(
     two_factor_backup_codes: {
       type: [String],
       default: [],
+    },
+    // ── 2FA disable-by-email fallback ─────────────────────────────────
+    disable_2fa_token: {
+      type: String,
+      default: null,
+    },
+    disable_2fa_expires: {
+      type: Date,
+      default: null,
     },
   },
   {

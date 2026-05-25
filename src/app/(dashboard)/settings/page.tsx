@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,7 @@ import { Loader2, User, Shield, ShieldCheck, Palette, AlertTriangle, Trash2, Mai
 import { useToast } from "@/hooks/use-toast";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { useTheme } from "next-themes";
+import { useSearchParams, useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { LogoutButton } from "@/components/shared/LogoutButton";
 import { TwoFactorSetup } from "@/components/settings/TwoFactorSetup";
@@ -86,9 +87,11 @@ const passwordSchema = z
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { isLoading: profileLoading, execute: executeProfile } = useAsyncAction();
   const { isLoading: passwordLoading, execute: executePassword } = useAsyncAction();
   const { isLoading: deleteLoading, execute: executeDelete } = useAsyncAction();
@@ -101,6 +104,29 @@ export default function SettingsPage() {
 
   // ── 2FA State ─────────────────────────────────────────────────────────
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+
+  // ── Active tab (supports URL param) ────────────────────────────────────
+  const tabFromUrl = searchParams.get("tab") || "profile";
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
+
+  // ── Handle URL params for 2FA disable-by-email flow ────────────────────
+  useEffect(() => {
+    if (searchParams.get("disabled") === "true") {
+      setIs2FAEnabled(false);
+      toast({
+        title: "2FA Disabled",
+        description: "Two-factor authentication has been disabled successfully.",
+      });
+      router.replace("/settings?tab=security");
+    } else if (searchParams.get("error") === "invalid-token") {
+      toast({
+        title: "Invalid Link",
+        description: "The link is invalid or has expired. Please try again.",
+        variant: "destructive",
+      });
+      router.replace("/settings?tab=security");
+    }
+  }, [searchParams, toast, router]);
 
   // ── Change Password 2FA State ──────────────────────────────────────────
   const [changePasswordRequires2FA, setChangePasswordRequires2FA] = useState(false);
@@ -270,7 +296,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted/50 w-full flex h-auto flex-wrap gap-1 p-1">
           <TabsTrigger value="profile" className="gap-1.5 flex-1 min-w-[100px] text-xs sm:text-sm">
             <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -384,6 +410,7 @@ export default function SettingsPage() {
               <CardContent>
                 <TwoFactorSetup
                   isEnabled={is2FAEnabled}
+                  email={user?.email || ""}
                   onStatusChange={(enabled) => setIs2FAEnabled(enabled)}
                 />
               </CardContent>
@@ -691,5 +718,19 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[200px]">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <SettingsPageContent />
+    </Suspense>
   );
 }
