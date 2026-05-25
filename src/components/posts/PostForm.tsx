@@ -43,8 +43,8 @@ const postFormSchema = z.object({
   scheduled_date: z.string().optional().nullable(),
   published_date: z.string().optional().nullable(),
   status: z.enum(["draft", "scheduled", "published"]),
-  has_videos: z.boolean().default(false),
-  has_images: z.boolean().default(false),
+  has_videos: z.boolean(),
+  has_images: z.boolean(),
 });
 
 type PostFormValues = z.infer<typeof postFormSchema>;
@@ -69,7 +69,7 @@ export function PostForm({
   const { isLoading: isSubmitting, execute } = useAsyncAction();
 
   const form = useForm<PostFormValues>({
-    resolver: zodResolver(postFormSchema),
+    resolver: zodResolver(postFormSchema) as any,
     defaultValues: {
       project_id: post?.project_id || defaultProjectId || "",
       name: post?.name || "",
@@ -133,12 +133,12 @@ export function PostForm({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((data) => {
-            execute(async () => { await onSubmit(data); });
+          <form onSubmit={form.handleSubmit((data: any) => {
+            execute(async () => { await onSubmit(data as PostFormValues); });
           })} className="space-y-4">
             {!defaultProjectId && (
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="project_id"
                 render={({ field }) => (
                   <FormItem>
@@ -167,7 +167,7 @@ export function PostForm({
             )}
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="name"
               render={({ field }) => (
                 <FormItem>
@@ -185,7 +185,7 @@ export function PostForm({
             />
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="content"
               render={({ field }) => (
                 <FormItem>
@@ -204,7 +204,7 @@ export function PostForm({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="type"
                 render={({ field }) => (
                   <FormItem>
@@ -229,7 +229,7 @@ export function PostForm({
               />
 
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="status"
                 render={({ field }) => (
                   <FormItem>
@@ -256,7 +256,7 @@ export function PostForm({
             </div>
 
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="scheduled_date"
               render={({ field }) => (
                 <FormItem className="pb-4">
@@ -276,7 +276,7 @@ export function PostForm({
 
             {watchedStatus === "published" && (
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="published_date"
                 render={({ field }) => (
                   <FormItem className="pb-4">
@@ -302,7 +302,7 @@ export function PostForm({
               </label>
               <div className="flex flex-col gap-3 p-3 rounded-lg border border-border bg-muted/20">
                 <FormField
-                  control={form.control}
+                  control={form.control as any}
                   name="has_images"
                   render={({ field }) => (
                     <FormItem className="flex items-center gap-3 space-y-0">
@@ -324,7 +324,7 @@ export function PostForm({
                   )}
                 />
                 <FormField
-                  control={form.control}
+                  control={form.control as any}
                   name="has_videos"
                   render={({ field }) => (
                     <FormItem className="flex items-center gap-3 space-y-0">
