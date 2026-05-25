@@ -201,7 +201,7 @@ function SettingsPageContent() {
       };
       if (result.success) {
         toast({ title: "Profile updated successfully!" });
-        setUser(result.data);
+        setUser(result.data ?? null);
       } else {
         toast({ title: "Error", description: result.error, variant: "destructive" });
       }
