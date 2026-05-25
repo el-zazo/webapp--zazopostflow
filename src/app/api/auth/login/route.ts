@@ -4,6 +4,7 @@ import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { signToken, createAuthResponse } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -11,6 +12,30 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 5 requests / 15 minutes
+  const rl = rateLimit(request, {
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    identifier: "auth:login",
+  });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(5),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const body = await request.json();
 

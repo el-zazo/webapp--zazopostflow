@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
 import dbConnect from "@/lib/mongodb";
@@ -7,6 +8,25 @@ import { requireAuth } from "@/lib/auth";
 import { sendDisable2FAEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 3600000, max: 3, identifier: "auth:2fa:request-disable-by-email" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(3),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     await dbConnect();
 

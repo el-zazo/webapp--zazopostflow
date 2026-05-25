@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import crypto from "crypto";
 import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
@@ -10,6 +11,25 @@ const forgotPasswordSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 3600000, max: 3, identifier: "auth:forgot-password" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(3),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const body = await request.json();
 

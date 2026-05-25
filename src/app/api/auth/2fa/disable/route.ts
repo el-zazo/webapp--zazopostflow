@@ -22,6 +22,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // FIX #6: Make twoFactorCode strictly required.
+    // Without a TOTP code, an attacker with the JWT cookie + password could
+    // disable 2FA, bypassing the entire second factor protection.
+    if (!code) {
+      return NextResponse.json(
+        { success: false, error: "2FA code is required" },
+        { status: 400 }
+      );
+    }
+
     const fullUser = await User.findById(user._id || user.id);
     if (!fullUser) {
       return NextResponse.json(
@@ -46,25 +56,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier le code 2FA ou backup code (si fourni)
-    if (code) {
-      // Vérifier si c'est un code TOTP normal
-      const totpResult = verifySync({
-        token: code,
-        secret: fullUser.two_factor_secret,
-      });
+    // FIX #6: Normalize the 2FA code (remove spaces and dashes),
+    // following the same pattern as /api/auth/2fa/challenge/route.ts
+    const normalizedCode = code.replace(/[\s-]/g, "");
 
-      // Vérifier si c'est un backup code
-      const isBackupCode = fullUser.two_factor_backup_codes.includes(
-        code.toUpperCase()
-      );
-
-      if (!totpResult.valid && !isBackupCode) {
-        return NextResponse.json(
-          { success: false, error: "Invalid 2FA code" },
-          { status: 400 }
-        );
+    // Vérifier si c'est un code TOTP normal
+    let isValidTotp = false;
+    if (/^\d{6}$/.test(normalizedCode)) {
+      try {
+        const totpResult = verifySync({
+          token: normalizedCode,
+          secret: fullUser.two_factor_secret,
+        });
+        isValidTotp = totpResult.valid;
+      } catch {
+        isValidTotp = false;
       }
+    }
+
+    // Vérifier si c'est un backup code
+    const backupCodes: string[] = fullUser.two_factor_backup_codes || [];
+    const backupIndex = backupCodes.findIndex(
+      (c: string) => c.trim().toUpperCase() === normalizedCode.toUpperCase()
+    );
+    const isBackupCode = backupIndex !== -1;
+
+    if (!isValidTotp && !isBackupCode) {
+      return NextResponse.json(
+        { success: false, error: "Invalid 2FA code" },
+        { status: 400 }
+      );
+    }
+
+    // Retirer backup code si utilisé
+    if (isBackupCode) {
+      const updatedCodes = backupCodes.filter(
+        (_: string, i: number) => i !== backupIndex
+      );
+      await User.findByIdAndUpdate(fullUser._id, {
+        two_factor_backup_codes: updatedCodes,
+      });
     }
 
     // Désactiver 2FA

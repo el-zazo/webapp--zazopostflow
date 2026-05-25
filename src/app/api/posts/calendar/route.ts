@@ -3,8 +3,28 @@ import dbConnect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 30, identifier: "api:posts:calendar:get" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(30),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   const auth = await requireAuth(request);
   if ("error" in auth) return auth.error;
   const { user } = auth;

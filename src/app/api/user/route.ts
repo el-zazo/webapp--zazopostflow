@@ -5,6 +5,7 @@ import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { requireAuth } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 const updateProfileSchema = z.object({
   username: z
@@ -28,6 +29,25 @@ const updateThemeSchema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 10, identifier: "api:user:put" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(10),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;

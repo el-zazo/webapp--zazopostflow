@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 const postUpdateSchema = z.object({
   name: z.string().min(1, "Post name is required").max(100).optional(),
@@ -78,6 +79,25 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 20, identifier: "api:posts:id:put" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(20),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
@@ -184,6 +204,25 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 10, identifier: "api:posts:id:delete" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(10),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;

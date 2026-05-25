@@ -1,10 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import { verifySync } from "otplib";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { signToken, createAuthResponse } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 900000, max: 5, identifier: "auth:2fa:challenge" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(5),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     await dbConnect();
 

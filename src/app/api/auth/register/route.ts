@@ -6,6 +6,7 @@ import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { validateEmailAdvanced } from "@/lib/email-validator";
 import { sendVerificationEmail } from "@/lib/email";
+import { rateLimit } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   username: z
@@ -21,6 +22,30 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 3 requests / 1 hour
+  const rl = rateLimit(request, {
+    windowMs: 60 * 60 * 1000,
+    max: 3,
+    identifier: "auth:register",
+  });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(3),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const body = await request.json();
 

@@ -47,10 +47,14 @@ const PostSchema = new Schema<IPost>(
     scheduled_date: {
       type: Date,
       default: null,
+      index: true,
+      sparse: true,
     },
     published_date: {
       type: Date,
       default: null,
+      index: true,
+      sparse: true,
     },
     status: {
       type: String,
@@ -70,6 +74,11 @@ const PostSchema = new Schema<IPost>(
     timestamps: true,
   }
 );
+
+// Compound indexes for common query patterns
+PostSchema.index({ project_id: 1, status: 1 });
+PostSchema.index({ project_id: 1, scheduled_date: 1 });
+PostSchema.index({ project_id: 1, published_date: 1 });
 
 const Post = mongoose.models.Post || mongoose.model<IPost>("Post", PostSchema);
 

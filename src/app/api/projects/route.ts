@@ -3,11 +3,11 @@ import { z } from "zod";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
 import Project from "@/models/Project";
-import Post from "@/models/Post";
 import Tag from "@/models/Tag";
 import { requireAuth } from "@/lib/auth";
 // [FIX #7] Import de la fonction d'échappement regex
 import { escapeRegExp } from "@/lib/utils";
+import { rateLimit } from "@/lib/rate-limit";
 
 const projectCreateSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
@@ -19,6 +19,25 @@ const projectCreateSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 60, identifier: "api:projects:get" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(60),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
@@ -55,10 +74,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Computed fields that require aggregation
-    const computedFields = ["postsCount", "tagsCount"];
-
-    // Build match query — use ObjectId for aggregation, string for Mongoose
+    // Build match query — use ObjectId for aggregation
     const matchQuery: Record<string, unknown> = {
       user_id: new mongoose.Types.ObjectId(user.userId),
     };
@@ -110,133 +126,86 @@ export async function GET(request: NextRequest) {
       matchQuery.$and = andConditions;
     }
 
-    if (computedFields.includes(sortBy)) {
-      // ─── AGGREGATION PIPELINE (computed sort fields) ───
-      const pipeline: mongoose.PipelineStage[] = [
-        { $match: matchQuery },
+    // ─── AGGREGATION PIPELINE (all sort fields) ───
+    // FIX #1: Use aggregation for ALL sort cases to eliminate N+1 queries.
+    // The pipeline handles postsCount via $lookup + $size, and also supports
+    // simple field sorts (name, status, createdAt, etc.) directly.
+    const pipeline: mongoose.PipelineStage[] = [
+      { $match: matchQuery },
 
-        // Count posts for each project
-        {
-          $lookup: {
-            from: "posts",
-            localField: "_id",
-            foreignField: "project_id",
-            as: "postsData",
-          },
+      // Count posts for each project
+      {
+        $lookup: {
+          from: "posts",
+          localField: "_id",
+          foreignField: "project_id",
+          as: "postsData",
         },
+      },
 
-        // Add computed fields
-        {
-          $addFields: {
-            postsCount: { $size: "$postsData" },
-            tagsCount: { $size: { $ifNull: ["$tags", []] } },
-          },
+      // Add computed fields
+      {
+        $addFields: {
+          postsCount: { $size: "$postsData" },
+          tagsCount: { $size: { $ifNull: ["$tags", []] } },
         },
+      },
 
-        // Remove heavy postsData array
-        { $project: { postsData: 0 } },
+      // Remove heavy postsData array
+      { $project: { postsData: 0 } },
 
-        // Sort by computed field + tiebreaker
-        { $sort: { [sortBy]: sortDirection, _id: 1 } },
+      // Sort by requested field + tiebreaker
+      { $sort: { [sortBy]: sortDirection, _id: 1 } },
 
-        // Facet for pagination + total in one query
-        {
-          $facet: {
-            data: [
-              { $skip: skip },
-              { $limit: limit },
-              // Populate tags via lookup
-              {
-                $lookup: {
-                  from: "tags",
-                  localField: "tags",
-                  foreignField: "_id",
-                  as: "tags",
-                },
+      // Facet for pagination + total in one query
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            // Populate tags via lookup
+            {
+              $lookup: {
+                from: "tags",
+                localField: "tags",
+                foreignField: "_id",
+                as: "tags",
               },
-            ],
-            total: [{ $count: "count" }],
-          },
+            },
+          ],
+          total: [{ $count: "count" }],
         },
-      ];
+      },
+    ];
 
-      const result = await Project.aggregate(pipeline);
-      const projects = result[0]?.data || [];
-      const totalItems = result[0]?.total[0]?.count || 0;
-      const totalPages = Math.ceil(totalItems / limit);
+    const result = await Project.aggregate(pipeline);
+    const projects = result[0]?.data || [];
+    const totalItems = result[0]?.total[0]?.count || 0;
+    const totalPages = Math.ceil(totalItems / limit);
 
-      // Normalize: aggregate returns ObjectId, frontend expects string
-      const serialized = projects.map((p: Record<string, unknown>) => ({
-        ...p,
-        _id: (p._id as { toString: () => string }).toString(),
-        user_id: (p.user_id as { toString: () => string })?.toString?.(),
-        tags: (p.tags as Array<Record<string, unknown>>)?.map((t) => ({
-          _id: (t._id as { toString: () => string }).toString(),
-          name: t.name,
-        })) || [],
-        createdAt: (p.createdAt as Date)?.toISOString?.(),
-        updatedAt: (p.updatedAt as Date)?.toISOString?.(),
-      }));
+    // Normalize: aggregate returns ObjectId, frontend expects string
+    const serialized = projects.map((p: Record<string, unknown>) => ({
+      ...p,
+      _id: (p._id as { toString: () => string }).toString(),
+      user_id: (p.user_id as { toString: () => string })?.toString?.(),
+      tags: (p.tags as Array<Record<string, unknown>>)?.map((t) => ({
+        _id: (t._id as { toString: () => string }).toString(),
+        name: t.name,
+      })) || [],
+      createdAt: (p.createdAt as Date)?.toISOString?.(),
+      updatedAt: (p.updatedAt as Date)?.toISOString?.(),
+    }));
 
-      return NextResponse.json({
-        success: true,
-        data: serialized,
-        pagination: {
-          totalItems,
-          totalPages,
-          currentPage: page,
-          limit,
-        },
-      });
-
-    } else {
-      // ─── SIMPLE SORT (direct fields) ───
-      const [projects, totalItems] = await Promise.all([
-        Project.find(matchQuery)
-          .populate("tags", "name _id")
-          .sort({ [sortBy]: sortDirection })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        Project.countDocuments(matchQuery),
-      ]);
-
-      const totalPages = Math.ceil(totalItems / limit);
-
-      // Add postsCount for each project
-      const projectsWithCount = await Promise.all(
-        projects.map(async (project) => {
-          const postsCount = await Post.countDocuments({
-            project_id: project._id,
-          });
-          return { ...project, postsCount };
-        })
-      );
-
-      // Serialize MongoDB documents
-      const serialized = projectsWithCount.map((p) => ({
-        ...p,
-        _id: p._id.toString(),
-        user_id: p.user_id.toString(),
-        tags: (p.tags as Array<{ _id: unknown; name: string }>).map((t) => ({
-          _id: t._id.toString(),
-          name: t.name,
-        })),
-        createdAt: p.createdAt?.toISOString(),
-        updatedAt: p.updatedAt?.toISOString(),
-      }));
-
-      return NextResponse.json({
-        success: true,
-        data: serialized,
-        pagination: {
-          totalItems,
-          totalPages,
-          currentPage: page,
-          limit,
-        },
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      data: serialized,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        limit,
+      },
+    });
   } catch (error) {
     console.error("Get projects error:", error);
     return NextResponse.json(
@@ -247,6 +216,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 20, identifier: "api:projects:post" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(20),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;

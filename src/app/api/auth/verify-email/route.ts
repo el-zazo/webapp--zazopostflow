@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 900000, max: 5, identifier: "auth:verify-email" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(5),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     await dbConnect();
 

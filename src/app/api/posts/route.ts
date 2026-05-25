@@ -6,6 +6,7 @@ import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
 // [FIX #7] Import de la fonction d'échappement regex
 import { escapeRegExp } from "@/lib/utils";
+import { rateLimit } from "@/lib/rate-limit";
 
 const postCreateSchema = z.object({
   project_id: z.string().min(1, "Project ID is required"),
@@ -32,6 +33,25 @@ const SORT_FIELD_MAP: Record<string, string> = {
 };
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 60, identifier: "api:posts:get" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(60),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
@@ -172,6 +192,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, { windowMs: 60000, max: 20, identifier: "api:posts:post" });
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many requests. Please try again later.",
+        retryAfter: rl.resetAt.toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(20),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": rl.resetAt.toISOString(),
+        },
+      }
+    );
+  }
+
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return auth.error;
