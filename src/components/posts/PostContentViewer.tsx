@@ -19,8 +19,8 @@ interface Post {
   content: string;
   status: string;
   type: string;
-  scheduled_date?: string;
-  published_date?: string;
+  scheduled_date?: string | null;
+  published_date?: string | null;
   has_images?: boolean;
   has_videos?: boolean;
 }

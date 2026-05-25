@@ -40,24 +40,8 @@ const postFormSchema = z.object({
   content: z.string().min(1, "Post content is required"),
   type: z.enum(["main", "group"]),
   platform: z.string().optional(),
-  scheduled_date: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((val) => {
-      if (!val || val === "") return "";
-      const date = new Date(val);
-      return isNaN(date.getTime()) ? "" : val;
-    }),
-  published_date: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((val) => {
-      if (!val || val === "") return "";
-      const date = new Date(val);
-      return isNaN(date.getTime()) ? "" : val;
-    }),
+  scheduled_date: z.string().optional().nullable(),
+  published_date: z.string().optional().nullable(),
   status: z.enum(["draft", "scheduled", "published"]),
   has_videos: z.boolean().default(false),
   has_images: z.boolean().default(false),
