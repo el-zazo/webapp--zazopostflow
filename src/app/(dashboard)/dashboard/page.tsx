@@ -19,6 +19,14 @@ const DEFAULT_STATS: DashboardStats = {
 };
 
 
+interface DashboardResponse {
+  success: boolean;
+  data?: {
+    stats?: Partial<DashboardStats>;
+    recentPosts?: RecentPost[];
+  };
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [recentPosts, setRecentPosts] = useState<RecentPost[]>([]);
@@ -39,7 +47,7 @@ export default function DashboardPage() {
           return;
         }
 
-        const data = await res.json();
+        const data = (await res.json()) as DashboardResponse;
 
         // Defensive: check response format
         if (data && data.success && data.data) {

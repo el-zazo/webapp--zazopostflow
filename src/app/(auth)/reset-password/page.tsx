@@ -115,7 +115,7 @@ function ResetPasswordContent() {
         body: JSON.stringify({ token, password: data.password }),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         setIsSuccess(true);

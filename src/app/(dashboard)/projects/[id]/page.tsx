@@ -65,7 +65,7 @@ export default function ProjectPostsPage() {
   const fetchProject = useCallback(async () => {
     try {
       const res = await apiFetch(`/api/projects/${projectId}`);
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; data: Project };
       if (data.success) {
         setProject(data.data);
       } else {
@@ -91,7 +91,11 @@ export default function ProjectPostsPage() {
       queryParams.set("limit", limit.toString());
 
       const res = await apiFetch(`/api/posts?${queryParams.toString()}`, { signal });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: Post[];
+        pagination: { totalItems: number };
+      };
 
       if (signal.aborted) return;
 
@@ -175,7 +179,7 @@ export default function ProjectPostsPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Project updated successfully!" });
@@ -191,7 +195,7 @@ export default function ProjectPostsPage() {
   const handleDeleteProject = async () => {
     await executeDeleteProject(async () => {
       const res = await apiFetch(`/api/projects/${projectId}`, { method: "DELETE" });
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Project deleted successfully!" });
@@ -210,7 +214,7 @@ export default function ProjectPostsPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Post created successfully!" });
@@ -233,7 +237,7 @@ export default function ProjectPostsPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Post updated successfully!" });
@@ -250,7 +254,7 @@ export default function ProjectPostsPage() {
   const handleDeletePost = async (id: string) => {
     await executeDeletePost(async () => {
       const res = await apiFetch(`/api/posts/${id}`, { method: "DELETE" });
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Post deleted successfully!" });

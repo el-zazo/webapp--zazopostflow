@@ -8,12 +8,12 @@ import { requireAuth } from "@/lib/auth";
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request);
   if ("error" in auth) return auth.error;
-  const { user } = auth;
+  const { user } = auth as { user: { _id?: string; id?: string } };
 
   try {
     await dbConnect();
 
-    const { password, code } = await request.json();
+    const { password, code } = (await request.json()) as { password?: string; code?: string };
 
     if (!password) {
       return NextResponse.json(

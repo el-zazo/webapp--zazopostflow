@@ -31,7 +31,7 @@ function ConfirmDeleteAccountContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
-        const data = await res.json();
+        const data = (await res.json()) as { success: boolean; error?: string };
 
         if (data.success) {
           setStatus("success");

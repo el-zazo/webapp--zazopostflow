@@ -22,7 +22,7 @@ export default function HomePage() {
       try {
         const res = await apiFetch("/api/auth/me");
         if (res.ok) {
-          const data = await res.json();
+          const data = (await res.json()) as { success: boolean };
           if (data.success) {
             router.push("/dashboard");
             return;

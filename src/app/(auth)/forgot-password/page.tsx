@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         setEmailSent(true);

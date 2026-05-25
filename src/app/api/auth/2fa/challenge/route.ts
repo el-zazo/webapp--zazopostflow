@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
 
-    const { userId, code } = await request.json();
+    const { userId, code } = (await request.json()) as { userId?: string; code?: string };
 
     if (!userId || !code) {
       return NextResponse.json(

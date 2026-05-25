@@ -65,7 +65,13 @@ function LoginContent() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as {
+        success: boolean;
+        notVerified?: boolean;
+        requires2FA?: boolean;
+        userId?: string;
+        error?: string;
+      };
 
       if (!result.success) {
         if (result.notVerified) {
@@ -126,7 +132,12 @@ function LoginContent() {
         }),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as {
+        success: boolean;
+        usedBackupCode?: boolean;
+        remainingBackupCodes?: number;
+        error?: string;
+      };
 
       if (result.success) {
         if (result.usedBackupCode && result.remainingBackupCodes < 3) {

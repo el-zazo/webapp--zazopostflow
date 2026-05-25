@@ -49,9 +49,9 @@ export default function ProjectsPage() {
     const fetchTags = async () => {
       try {
         const res = await apiFetch("/api/tags?limit=100");
-        const data = await res.json();
+        const data = (await res.json()) as { success: boolean; data: Array<{ _id: string; name: string }> };
         if (data.success) {
-          setAvailableTags(data.data.map((t: {_id: string; name: string}) => ({
+          setAvailableTags(data.data.map((t) => ({
             _id: t._id,
             name: t.name,
           })));
@@ -77,7 +77,11 @@ export default function ProjectsPage() {
       }
 
       const res = await apiFetch(`/api/projects?${params.toString()}`, { signal });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: Project[];
+        pagination: { totalItems: number };
+      };
 
       // Ne pas mettre à jour le state si la requête a été annulée
       if (signal.aborted) return;
@@ -165,7 +169,7 @@ export default function ProjectsPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Project created successfully!" });
@@ -189,7 +193,7 @@ export default function ProjectsPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Project updated successfully!" });
@@ -205,7 +209,7 @@ export default function ProjectsPage() {
   const handleDeleteProject = async (id: string) => {
     await executeDelete(async () => {
       const res = await apiFetch(`/api/projects/${id}`, { method: "DELETE" });
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Project deleted successfully!" });

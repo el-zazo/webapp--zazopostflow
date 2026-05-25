@@ -87,7 +87,7 @@ export default function CalendarPage() {
 
   const selectedDayPosts = selectedDay ? getPostsForDay(selectedDay) : [];
 
-  const days = [];
+  const days: React.ReactNode[] = [];
   // Empty cells for days before the 1st
   for (let i = 0; i < startDay; i++) {
     days.push(<div key={`empty-${i}`} className="h-24 md:h-28" />);

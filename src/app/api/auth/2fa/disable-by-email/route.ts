@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       disable_2fa_expires: { $gt: new Date() },
     });
 
-    let matchedUser: InstanceType<typeof User> | null = null;
+    let matchedUser: any = null;
 
     for (const candidate of candidates) {
       const isMatch = await bcryptjs.compare(

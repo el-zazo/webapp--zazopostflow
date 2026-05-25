@@ -156,7 +156,17 @@ function SettingsPageContent() {
     const fetchUser = async () => {
       try {
         const res = await apiFetch("/api/auth/me");
-        const data = await res.json();
+        const data = (await res.json()) as {
+          success: boolean;
+          data: {
+            user: {
+              username: string;
+              email: string;
+              theme: string;
+              two_factor_enabled?: boolean;
+            };
+          };
+        };
         if (data.success) {
           setUser(data.data.user);
           profileForm.reset({
@@ -184,7 +194,11 @@ function SettingsPageContent() {
         body: JSON.stringify({ action: "profile", ...data }),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as {
+        success: boolean;
+        data?: { username: string; email: string; theme: string };
+        error?: string;
+      };
       if (result.success) {
         toast({ title: "Profile updated successfully!" });
         setUser(result.data);
@@ -206,7 +220,11 @@ function SettingsPageContent() {
         }),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as {
+        success: boolean;
+        requires2FA?: boolean;
+        error?: string;
+      };
       if (result.success) {
         toast({ title: "Password updated successfully!" });
         passwordForm.reset();
@@ -258,7 +276,12 @@ function SettingsPageContent() {
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        email: string;
+        requires2FA?: boolean;
+        error?: string;
+      };
 
       if (data.success) {
         setDeleteRequested(true);

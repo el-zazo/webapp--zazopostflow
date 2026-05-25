@@ -114,7 +114,11 @@ export default function TagsPage() {
       params.set("limit", limit.toString());
 
       const res = await apiFetch(`/api/tags?${params.toString()}`, { signal });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: Tag[];
+        pagination: { totalItems: number };
+      };
 
       if (signal.aborted) return;
 
@@ -174,7 +178,7 @@ export default function TagsPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Tag created successfully!" });
@@ -190,7 +194,7 @@ export default function TagsPage() {
   const handleDeleteTag = async (id: string) => {
     await executeDelete(async () => {
       const res = await apiFetch(`/api/tags/${id}`, { method: "DELETE" });
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; error?: string };
 
       if (result.success) {
         toast({ title: "Tag deleted successfully!" });

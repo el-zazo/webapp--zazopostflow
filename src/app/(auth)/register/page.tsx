@@ -90,7 +90,7 @@ export default function RegisterPage() {
   const [emailValidating, setEmailValidating] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailValid, setEmailValid] = useState(false);
-  const emailDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const emailDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -129,7 +129,7 @@ export default function RegisterPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
         });
-        const data = await res.json();
+        const data = (await res.json()) as { valid: boolean; message?: string };
 
         if (!data.valid) {
           setEmailError(data.message || "Invalid email address");
@@ -157,7 +157,12 @@ export default function RegisterPage() {
         body: JSON.stringify(data),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as {
+        success: boolean;
+        resent?: boolean;
+        error?: string;
+        email?: string;
+      };
 
       if (!result.success) {
         toast({
