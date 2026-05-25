@@ -73,7 +73,11 @@ export function TwoFactorSetup({ isEnabled, email, onStatusChange }: TwoFactorSe
     setError(null);
     await executeSetup(async () => {
       const res = await apiFetch("/api/auth/2fa/setup", { method: "POST" });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: { qrCode: string; secret: string };
+        error?: string;
+      };
 
       if (data.success) {
         setQrCode(data.data.qrCode);
@@ -97,7 +101,11 @@ export function TwoFactorSetup({ isEnabled, email, onStatusChange }: TwoFactorSe
         body: JSON.stringify({ code: verifyCode }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: { backupCodes: string[] };
+        error?: string;
+      };
 
       if (data.success) {
         setBackupCodes(data.data.backupCodes);
@@ -125,7 +133,7 @@ export function TwoFactorSetup({ isEnabled, email, onStatusChange }: TwoFactorSe
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; error?: string };
 
       if (data.success) {
         setStep("idle");
@@ -153,7 +161,11 @@ export function TwoFactorSetup({ isEnabled, email, onStatusChange }: TwoFactorSe
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: { backupCodes: string[] };
+        error?: string;
+      };
 
       if (data.success) {
         setViewedBackupCodes(data.data.backupCodes); // peut être []
@@ -196,7 +208,7 @@ export function TwoFactorSetup({ isEnabled, email, onStatusChange }: TwoFactorSe
         method: "POST",
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; error?: string };
 
       if (data.success) {
         setEmailFallbackSent(true);

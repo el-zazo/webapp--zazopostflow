@@ -81,7 +81,7 @@ export function ProjectForm({ open, onClose, onSubmit, project }: ProjectFormPro
   useEffect(() => {
     if (open) {
       // project.tags is now [{_id, name}] after populate
-      const populatedTags = (project?.tags || []).map((t) => ({
+      const populatedTags = (project?.tags || []).map((t: any) => ({
         _id: typeof t === "string" ? t : t._id,
         name: typeof t === "string" ? t : t.name,
       }));
@@ -108,7 +108,7 @@ export function ProjectForm({ open, onClose, onSubmit, project }: ProjectFormPro
   const fetchTags = async () => {
     try {
       const res = await apiFetch("/api/tags?limit=100");
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; data: Tag[] };
       if (data.success) {
         setAllTags(data.data);
       }
@@ -165,7 +165,7 @@ export function ProjectForm({ open, onClose, onSubmit, project }: ProjectFormPro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
-      const result = await res.json();
+      const result = (await res.json()) as { success: boolean; data: { _id: string } };
 
       if (result.success) {
         // Add the newly created tag with its _id

@@ -31,7 +31,7 @@ export function RegenerateBackupCodes({ onSuccess }: RegenerateBackupCodesProps)
         method: "POST",
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; data: { backupCodes: string[] } };
 
       if (data.success) {
         onSuccess(data.data.backupCodes);

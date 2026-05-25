@@ -50,7 +50,11 @@ export function EditTagDialog({ tag, onSuccess }: EditTagDialogProps) {
         body: JSON.stringify({ name: name.trim() }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success: boolean;
+        data: { _id: string; name: string };
+        error?: string;
+      };
 
       if (data.success) {
         onSuccess(data.data);
