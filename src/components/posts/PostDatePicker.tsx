@@ -82,12 +82,29 @@ export function PostDatePicker({
     refetchCounts,
   } = useDatePickerPosts(viewYear, viewMonth);
 
-  // Fermer si clic en dehors
+  // Fermer si clic en dehors (Sécurisé pour les Dialogs/Portals)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!target) return;
+
+      // [FIX #18] : Ignorer les clics survenant dans un Portail Radix (modales, overlays, alertes)
+      // pour éviter de fermer prématurément le DatePicker lors d'une action de confirmation.
+      const element = target as HTMLElement;
+      const isPortal = element.closest && (
+        element.closest('[data-radix-portal]') ||
+        element.closest('[role="dialog"]') ||
+        element.closest('[role="alertdialog"]') ||
+        element.closest('.bg-black\\/50') // Overlay background de Radix
+      );
+
+      if (isPortal) {
+        return; // On ne ferme pas le calendrier si on clique dans une modale
+      }
+
       if (
         containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
+        !containerRef.current.contains(target)
       ) {
         setIsOpen(false);
         setActiveDay(null);

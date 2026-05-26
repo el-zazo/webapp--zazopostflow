@@ -17,7 +17,7 @@ interface QuickPublishButtonProps {
 
 /**
  * QuickPublishButton - Premium, modern and minimalist publish toggler.
- * Uses a clean "ghost" variant style matching our application design guidelines.
+ * Now requires dual-confirmation (both publish and unpublish) to prevent accidental clicks.
  */
 export function QuickPublishButton({ post, onSuccess, className }: QuickPublishButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -83,7 +83,7 @@ export function QuickPublishButton({ post, onSuccess, className }: QuickPublishB
   };
 
   if (isPublished) {
-    // Unpublish requires confirmation with custom soft-red destructive hover state
+    // Unpublish requires confirmation (Destructive state)
     return (
       <ConfirmDialog
         trigger={
@@ -113,24 +113,32 @@ export function QuickPublishButton({ post, onSuccess, className }: QuickPublishB
     );
   }
 
-  // Publish button (subtle gray that turns to active green on hover)
+  // Publish now requires confirmation (Elegantly styled with default orange brand color)
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleToggle}
-      disabled={isLoading}
-      className={cn(
-        "h-9 w-9 md:h-8 md:w-8 text-muted-foreground hover:text-green-500 hover:bg-green-500/10 rounded-lg transition-all duration-200 shrink-0",
-        className
-      )}
-      title="Mark as Published"
-    >
-      {isLoading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <Send className="w-4.5 h-4.5" />
-      )}
-    </Button>
+    <ConfirmDialog
+      trigger={
+        <Button
+          variant="ghost"
+          size="icon"
+          disabled={isLoading}
+          className={cn(
+            "h-9 w-9 md:h-8 md:w-8 text-muted-foreground hover:text-green-500 hover:bg-green-500/10 rounded-lg transition-all duration-200 shrink-0",
+            className
+          )}
+          title="Mark as Published"
+        >
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4.5 h-4.5" />
+          )}
+        </Button>
+      }
+      title="Publish Post"
+      description={`Are you sure you want to publish "${post.name}" now? This will set its status to published and update its publish date to today.`}
+      onConfirm={handleToggle}
+      confirmText="Publish Now"
+      variant="default"
+    />
   );
 }
