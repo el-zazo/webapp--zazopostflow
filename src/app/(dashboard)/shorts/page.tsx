@@ -45,7 +45,7 @@ export default function ShortsPage() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const sectionRefs = useRef<Map<number, HTMLSectionElement>>(new Map());
+  const sectionRefs = useRef<Map<number, HTMLElement>>(new Map());
 
   const fetchPosts = useCallback(async () => {
     try {
