@@ -6,11 +6,10 @@ import { requireAuth } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
- * GET /api/posts/shorts
+ * GET /api/posts/shorts?page=1&limit=1
  *
- * Fetches ALL posts from user's projects with populated project + tags,
- * sorted by createdAt DESC (newest first).
- * Used for the Shorts vertical scrolling view.
+ * Route d'API paginée pour le défilement vertical infini de type Shorts.
+ * Renvoie un seul post à la fois (par défaut) pour optimiser les performances.
  */
 export async function GET(request: NextRequest) {
   const rl = rateLimit(request, { windowMs: 60000, max: 30, identifier: "api:posts:shorts" });
@@ -39,17 +38,29 @@ export async function GET(request: NextRequest) {
   try {
     await dbConnect();
 
-    // Get user's project IDs
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.max(1, parseInt(searchParams.get("limit") || "1"));
+    const skip = (page - 1) * limit;
+
+    // Récupérer les projets de l'utilisateur
     const userProjects = await Project.find({
       user_id: user.userId,
     }).select("_id");
     const projectIds = userProjects.map((p) => p._id);
 
-    // Fetch all posts from user's projects, populate project with tags
+    // Compte total de posts pour la pagination
+    const totalItems = await Post.countDocuments({
+      project_id: { $in: projectIds },
+    });
+
+    // Récupérer le post de la page actuelle
     const posts = await Post.find({
       project_id: { $in: projectIds },
     })
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate({
         path: "project_id",
         select: "name tags github_link demo_link",
@@ -60,7 +71,7 @@ export async function GET(request: NextRequest) {
       })
       .lean();
 
-    // Safely serialize posts
+    // Sérialiser proprement le post
     const serializedPosts = posts.map((p: Record<string, unknown>) => {
       let projectName = "Unknown";
       let projectId = "";
@@ -77,7 +88,6 @@ export async function GET(request: NextRequest) {
           githubLink = (proj.github_link as string) || "";
           demoLink = (proj.demo_link as string) || "";
 
-          // Extract tags from populated project
           const rawTags = proj.tags as Array<Record<string, unknown>> | undefined;
           if (Array.isArray(rawTags)) {
             projectTags = rawTags.map((t) => ({
@@ -124,9 +134,17 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const hasNextPage = skip + limit < totalItems;
+
     return NextResponse.json({
       success: true,
       data: serializedPosts,
+      pagination: {
+        totalItems,
+        currentPage: page,
+        hasNextPage,
+        nextPage: hasNextPage ? page + 1 : null,
+      },
     });
   } catch (error) {
     console.error("Shorts posts error:", error);
