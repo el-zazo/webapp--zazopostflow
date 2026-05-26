@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FolderKanban, FileText, CalendarCheck, Send, Plus, ImageIcon, Video, Clock, AlertTriangle, PartyPopper } from "lucide-react";
+import { FolderKanban, FileText, CalendarCheck, Send, Plus, ImageIcon, Video, Clock, AlertTriangle, PartyPopper, PenTool } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,15 @@ interface MissedPost {
   projectId: string;
 }
 
+interface DraftPost {
+  _id: string;
+  name: string;
+  status: string;
+  updatedAt: string;
+  projectName: string;
+  projectId: string;
+}
+
 interface TopTag {
   _id: string;
   name: string;
@@ -49,19 +58,15 @@ interface DashboardResponse {
     recentPosts?: RecentPost[];
     upcomingPosts?: UpcomingPost[];
     missedPosts?: MissedPost[];
+    draftPosts?: DraftPost[];
+    totalDraftsCount?: number;
   };
 }
 
-/**
- * Calculate a human-readable countdown from now to a target date.
- * Normalizes dates to midnight to compute accurate calendar-day differences,
- * preventing time-of-day rounding bugs.
- */
 function getCountdown(targetDate: string): string {
   const now = new Date();
   const target = new Date(targetDate);
 
-  // Normaliser les deux dates à minuit pour calculer une différence de jours exacte
   const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate());
 
@@ -73,7 +78,6 @@ function getCountdown(targetDate: string): string {
   }
   
   if (diffDays === 0) {
-    // Si c'est aujourd'hui, on calcule s'il y a des heures/minutes précises restantes
     const exactDiffMs = target.getTime() - now.getTime();
     if (exactDiffMs <= 0) {
       return "today";
@@ -95,9 +99,6 @@ function getCountdown(targetDate: string): string {
   return `in ${diffDays} days`;
 }
 
-/**
- * Calculate how many days a post is overdue.
- */
 function getDaysOverdue(scheduledDate: string): number {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -112,6 +113,8 @@ export default function DashboardPage() {
   const [recentPosts, setRecentPosts] = useState<RecentPost[]>([]);
   const [upcomingPosts, setUpcomingPosts] = useState<UpcomingPost[]>([]);
   const [missedPosts, setMissedPosts] = useState<MissedPost[]>([]);
+  const [draftPosts, setDraftPosts] = useState<DraftPost[]>([]);
+  const [totalDraftsCount, setTotalDraftsCount] = useState<number>(0);
   const [topTags, setTopTags] = useState<TopTag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -121,7 +124,6 @@ export default function DashboardPage() {
       try {
         setIsLoading(true);
 
-        // Fetch dashboard data and top tags in parallel
         const [dashRes, tagsRes] = await Promise.all([
           apiFetch("/api/dashboard"),
           apiFetch("/api/dashboard/top-tags"),
@@ -134,12 +136,12 @@ export default function DashboardPage() {
           setRecentPosts([]);
           setUpcomingPosts([]);
           setMissedPosts([]);
+          setDraftPosts([]);
+          setTotalDraftsCount(0);
         } else {
           const data = (await dashRes.json()) as DashboardResponse;
 
-          // Defensive: check response format
           if (data && data.success && data.data) {
-            // Stats - defensive with fallbacks
             if (data.data.stats) {
               setStats({
                 totalProjects: Number(data.data.stats.totalProjects) || 0,
@@ -151,37 +153,41 @@ export default function DashboardPage() {
               setStats(DEFAULT_STATS);
             }
 
-            // Recent posts - defensive: must be array
             if (Array.isArray(data.data.recentPosts)) {
               setRecentPosts(data.data.recentPosts);
             } else {
               setRecentPosts([]);
             }
 
-            // Upcoming posts
             if (Array.isArray(data.data.upcomingPosts)) {
               setUpcomingPosts(data.data.upcomingPosts);
             } else {
               setUpcomingPosts([]);
             }
 
-            // Missed posts
             if (Array.isArray(data.data.missedPosts)) {
               setMissedPosts(data.data.missedPosts);
             } else {
               setMissedPosts([]);
             }
+
+            if (Array.isArray(data.data.draftPosts)) {
+              setDraftPosts(data.data.draftPosts);
+            } else {
+              setDraftPosts([]);
+            }
+            setTotalDraftsCount(data.data.totalDraftsCount || 0);
           } else {
-            // Unexpected format or failed response
             setFetchError(true);
             setStats(DEFAULT_STATS);
             setRecentPosts([]);
             setUpcomingPosts([]);
             setMissedPosts([]);
+            setDraftPosts([]);
+            setTotalDraftsCount(0);
           }
         }
 
-        // Top tags
         if (tagsRes.ok) {
           const tagsData = (await tagsRes.json()) as { success: boolean; data: TopTag[] };
           if (tagsData.success && Array.isArray(tagsData.data)) {
@@ -195,6 +201,8 @@ export default function DashboardPage() {
         setRecentPosts([]);
         setUpcomingPosts([]);
         setMissedPosts([]);
+        setDraftPosts([]);
+        setTotalDraftsCount(0);
       } finally {
         setIsLoading(false);
       }
@@ -203,7 +211,6 @@ export default function DashboardPage() {
     fetchDashboard();
   }, []);
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -426,6 +433,76 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {/* Draft Posts Section */}
+      <Card className="bg-card border-border">
+        <CardHeader className="flex flex-row items-center gap-2">
+          <PenTool className="w-5 h-5 text-gray-400" />
+          <CardTitle className="text-foreground">Draft Posts (Brouillons)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {draftPosts.length === 0 ? (
+            <div className="text-center py-6">
+              <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+              <p className="text-foreground font-medium">No drafts found</p>
+              <p className="text-muted-foreground text-sm">
+                All your post ideas are scheduled or published! 🚀
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                {draftPosts.map((post) => (
+                  <div
+                    key={post._id}
+                    className="flex items-center justify-between py-3 border-b border-border last:border-0 gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate min-w-0">
+                        {post.name || "Untitled Post"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5 min-w-0">
+                        <Link
+                          href={`/projects/${post.projectId}`}
+                          className="hover:text-orange-500 transition-colors underline-offset-2 hover:underline"
+                        >
+                          {post.projectName || "Unknown Project"}
+                        </Link>
+                        {" "}&middot;{" "}
+                        Last edited:{" "}
+                        {new Date(post.updatedAt).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-border"
+                      asChild
+                    >
+                      <Link href={`/projects/${post.projectId}`}>
+                        Edit
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Compteur de reste s'il y a plus de 5 brouillons */}
+              {totalDraftsCount > 5 && (
+                <div className="text-center pt-2.5 border-t border-border">
+                  <p className="text-xs text-muted-foreground font-medium">
+                    + {totalDraftsCount - 5} more draft post{totalDraftsCount - 5 !== 1 ? "s" : ""} waiting in your projects.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Recent Activity */}
       <Card className="bg-card border-border">
         <CardHeader>
@@ -433,7 +510,6 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {fetchError ? (
-            // API error state - no crash
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-foreground font-medium mb-1">
@@ -495,15 +571,10 @@ export default function DashboardPage() {
                   key={post._id}
                   className="flex items-center justify-between py-3 border-b border-border last:border-0 gap-3"
                 >
-                  {/* Infos post - gauche */}
                   <div className="flex-1 min-w-0">
-
-                    {/* Ligne 1: Titre */}
                     <p className="text-sm font-medium truncate min-w-0">
                       {post.name || "Untitled Post"}
                     </p>
-
-                    {/* Ligne 2: Projet + date */}
                     <p className="text-xs text-muted-foreground truncate mt-0.5 min-w-0">
                       <Link
                         href={`/projects/${post.projectId}`}
@@ -519,11 +590,7 @@ export default function DashboardPage() {
                           })
                         : "Unknown date"}
                     </p>
-
-                    {/* Ligne 3: Type + Media icons */}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-
-                      {/* Type badge */}
                       {post.type && (
                         <span
                           className={`
@@ -537,8 +604,6 @@ export default function DashboardPage() {
                           {post.type === "main" ? "Main" : "Group"}
                         </span>
                       )}
-
-                      {/* Media icons */}
                       {post.has_images && (
                         <div className="flex items-center gap-1 text-xs text-blue-400">
                           <ImageIcon className="w-3 h-3 shrink-0" />
@@ -551,11 +616,8 @@ export default function DashboardPage() {
                           <span className="hidden sm:inline">Videos</span>
                         </div>
                       )}
-
                     </div>
                   </div>
-
-                  {/* Status badge - droite */}
                   <span
                     className={`
                       text-xs px-2.5 py-1 rounded-full font-medium shrink-0

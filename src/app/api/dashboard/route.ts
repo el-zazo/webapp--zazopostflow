@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
       const userProjects = await Project.find({ user_id: userId }).select("_id");
       projectIds = userProjects.map((p) => p._id);
     } catch {
-      // If project query fails, continue with empty array
       projectIds = [];
     }
 
@@ -56,7 +55,7 @@ export async function GET(request: NextRequest) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // All queries in parallel with individual catch - never throw
-    const [totalProjects, totalPosts, scheduledThisWeek, publishedThisMonth] =
+    const [totalProjects, totalPosts, scheduledThisWeek, publishedThisMonth, totalDraftsCount] =
       await Promise.all([
         Project.countDocuments({ user_id: userId }).catch(() => 0),
         Post.countDocuments({ project_id: { $in: projectIds } }).catch(() => 0),
@@ -69,6 +68,10 @@ export async function GET(request: NextRequest) {
           project_id: { $in: projectIds },
           status: "published",
           published_date: { $gte: startOfMonth },
+        }).catch(() => 0),
+        Post.countDocuments({
+          project_id: { $in: projectIds },
+          status: "draft",
         }).catch(() => 0),
       ]);
 
@@ -93,7 +96,6 @@ export async function GET(request: NextRequest) {
       let projectId = "";
 
       try {
-        // project_id may be populated (object) or just an ObjectId (string)
         const proj = p.project_id as Record<string, unknown> | undefined;
         if (proj && typeof proj === "object") {
           projectName = (proj.name as string) || "Unknown";
@@ -210,6 +212,50 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Draft posts: status="draft" (triés par date de dernière modification)
+    let draftPosts: Record<string, unknown>[] = [];
+    try {
+      draftPosts = await Post.find({
+        project_id: { $in: projectIds },
+        status: "draft",
+      })
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .populate("project_id", "name")
+        .lean()
+        .catch(() => []);
+    } catch {
+      draftPosts = [];
+    }
+
+    const serializedDraftPosts = (draftPosts || []).map((p: Record<string, unknown>) => {
+      let projectName = "Unknown";
+      let projectId = "";
+
+      try {
+        const proj = p.project_id as Record<string, unknown> | undefined;
+        if (proj && typeof proj === "object") {
+          projectName = (proj.name as string) || "Unknown";
+          const projId = proj._id as { toString(): string };
+          projectId = projId?.toString() || "";
+        }
+      } catch {
+        projectName = "Unknown";
+        projectId = "";
+      }
+
+      return {
+        _id: (p._id as { toString(): string }).toString() || "",
+        name: (p.name as string) || "Untitled Post",
+        status: (p.status as string) || "draft",
+        updatedAt: p.updatedAt
+          ? new Date(p.updatedAt as Date).toISOString()
+          : new Date().toISOString(),
+        projectName,
+        projectId,
+      };
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -222,11 +268,12 @@ export async function GET(request: NextRequest) {
         recentPosts: serializedRecentPosts,
         upcomingPosts: serializedUpcomingPosts,
         missedPosts: serializedMissedPosts,
+        draftPosts: serializedDraftPosts,
+        totalDraftsCount,
       },
     });
   } catch (error) {
     console.error("Dashboard error:", error);
-    // Return safe defaults instead of 500 - prevents dashboard crash
     return NextResponse.json({
       success: true,
       data: {
@@ -239,6 +286,8 @@ export async function GET(request: NextRequest) {
         recentPosts: [],
         upcomingPosts: [],
         missedPosts: [],
+        draftPosts: [],
+        totalDraftsCount: 0,
       },
     });
   }
