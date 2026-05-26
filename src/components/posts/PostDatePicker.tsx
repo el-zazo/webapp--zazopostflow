@@ -39,7 +39,7 @@ function getStatusColor(status: string): string {
   switch (status) {
     case "published": return "text-green-400";
     case "scheduled": return "text-blue-400";
-    default:          return "text-muted-foreground";
+    default: return "text-muted-foreground";
   }
 }
 
@@ -47,7 +47,7 @@ function getStatusIcon(status: string) {
   switch (status) {
     case "published": return <CheckCircle className="w-3 h-3 shrink-0" />;
     case "scheduled": return <Clock className="w-3 h-3 shrink-0" />;
-    default:          return <FileText className="w-3 h-3 shrink-0" />;
+    default: return <FileText className="w-3 h-3 shrink-0" />;
   }
 }
 
@@ -112,8 +112,8 @@ export function PostDatePicker({
   const selectedDate = value ? new Date(value) : null;
   const selectedDay =
     selectedDate &&
-    selectedDate.getFullYear() === viewYear &&
-    selectedDate.getMonth() + 1 === viewMonth
+      selectedDate.getFullYear() === viewYear &&
+      selectedDate.getMonth() + 1 === viewMonth
       ? selectedDate.getDate()
       : null;
 
@@ -202,7 +202,7 @@ export function PostDatePicker({
       {/* Calendar Dropdown */}
       {isOpen && (
         <div className="absolute z-50 mt-2 mb-4 bg-card border border-border rounded-xl shadow-xl w-full min-w-[310px] overflow-hidden">
-          
+
           {/* Calendrier */}
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
@@ -274,25 +274,25 @@ export function PostDatePicker({
                         "flex items-center justify-center",
 
                         isSelected &&
-                          "bg-orange-500 text-white font-bold shadow-[0_0_12px_rgba(249,115,22,0.4)]",
+                        "bg-orange-500 text-white font-bold shadow-[0_0_12px_rgba(249,115,22,0.4)]",
 
                         isActive &&
-                          !isSelected &&
-                          "bg-orange-500/20 text-orange-400 ring-2 ring-orange-500/40",
+                        !isSelected &&
+                        "bg-orange-500/20 text-orange-400 ring-2 ring-orange-500/40",
 
                         isToday &&
-                          !isSelected &&
-                          !isActive &&
-                          "border-2 border-orange-500/50 text-orange-400",
+                        !isSelected &&
+                        !isActive &&
+                        "border-2 border-orange-500/50 text-orange-400",
 
                         !isSelected &&
-                          !isActive &&
-                          "hover:bg-orange-500/10 hover:text-orange-400",
+                        !isActive &&
+                        "hover:bg-orange-500/10 hover:text-orange-400",
 
                         !isSelected &&
-                          !isActive &&
-                          !isToday &&
-                          (hasPosts ? "text-foreground" : "text-muted-foreground")
+                        !isActive &&
+                        !isToday &&
+                        (hasPosts ? "text-foreground" : "text-muted-foreground")
                       )}
                     >
                       {day}
@@ -359,7 +359,7 @@ export function PostDatePicker({
                               content: post.content,
                               type: post.type,
                               platform: post.platform,
-                              status: post.status,
+                              status: post.status as "draft" | "scheduled" | "published",
                               scheduled_date: post.scheduled_date,
                               published_date: post.published_date,
                               has_images: post.has_images,
@@ -407,10 +407,14 @@ export function PostDatePicker({
                         {/* Media indicators */}
                         <div className="flex items-center gap-1 shrink-0">
                           {post.has_images && (
-                            <ImageIcon className="w-3.5 h-3.5 text-blue-400" title="Contains Images" />
+                            <span title="Contains Images" className="flex items-center">
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                            </span>
                           )}
                           {post.has_videos && (
-                            <Video className="w-3.5 h-3.5 text-purple-400" title="Contains Videos" />
+                            <span title="Contains Videos" className="flex items-center">
+                              <Video className="w-3.5 h-3.5 text-purple-400" />
+                            </span>
                           )}
                         </div>
                       </div>
