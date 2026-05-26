@@ -3,25 +3,23 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { EyeOff, Send, Loader2 } from "lucide-react";
+import { EyeOff, Send, Loader2, CheckCircle2 } from "lucide-react";
 import { Post } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 interface QuickPublishButtonProps {
   post: Post;
   onSuccess: () => void;
+  className?: string;
 }
 
 /**
- * QuickPublishButton - Toggle button to publish/unpublish a post.
- *
- * - If post is "published" → Unpublish: reverts to "scheduled" (if scheduled_date exists) or "draft"
- * - If post is NOT "published" → Publish: sets status to "published" + published_date = now()
- * - Uses ConfirmDialog for unpublish action to prevent accidental data loss
- * - Uses loadingRef for double-click protection
+ * QuickPublishButton - Premium, modern and minimalist publish toggler.
+ * Uses a clean "ghost" variant style matching our application design guidelines.
  */
-export function QuickPublishButton({ post, onSuccess }: QuickPublishButtonProps) {
+export function QuickPublishButton({ post, onSuccess, className }: QuickPublishButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const loadingRef = useRef(false);
   const { toast } = useToast();
@@ -46,7 +44,6 @@ export function QuickPublishButton({ post, onSuccess }: QuickPublishButtonProps)
       if (newStatus === "published") {
         payload.published_date = new Date().toISOString();
       } else {
-        // When unpublishing, clear published_date
         payload.published_date = null;
       }
 
@@ -62,22 +59,21 @@ export function QuickPublishButton({ post, onSuccess }: QuickPublishButtonProps)
         toast({
           title: isPublished ? "Post unpublished" : "Post published",
           description: isPublished
-            ? `"${post.name}" is now ${newStatus}`
-            : `"${post.name}" has been published`,
+            ? `"${post.name}" is now reverted to ${newStatus}`
+            : `"${post.name}" has been published successfully`,
         });
         onSuccess();
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to update post status",
+          description: result.error || "Failed to update status",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error("Quick publish error:", error);
+    } catch {
       toast({
         title: "Error",
-        description: "Failed to update post status",
+        description: "Failed to update status",
         variant: "destructive",
       });
     } finally {
@@ -87,26 +83,29 @@ export function QuickPublishButton({ post, onSuccess }: QuickPublishButtonProps)
   };
 
   if (isPublished) {
-    // Unpublish requires confirmation
+    // Unpublish requires confirmation with custom soft-red destructive hover state
     return (
       <ConfirmDialog
         trigger={
           <Button
+            variant="ghost"
             size="icon"
-            variant="destructive"
-            title="Unpublish"
             disabled={isLoading}
-            className="h-9 w-9 md:h-8 md:w-8"
+            className={cn(
+              "h-9 w-9 md:h-8 md:w-8 text-green-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all duration-200 shrink-0",
+              className
+            )}
+            title="Published (Click to unpublish)"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <EyeOff className="w-4 h-4" />
+              <CheckCircle2 className="w-4.5 h-4.5" />
             )}
           </Button>
         }
         title="Unpublish Post"
-        description={`Are you sure you want to unpublish "${post.name}"? The post will be reverted to ${post.scheduled_date ? "scheduled" : "draft"} status and its published date will be cleared.`}
+        description={`Are you sure you want to unpublish "${post.name}"? It will be reverted to ${post.scheduled_date ? "scheduled" : "draft"} and the publish date will be cleared.`}
         onConfirm={handleToggle}
         confirmText="Unpublish"
         variant="destructive"
@@ -114,20 +113,23 @@ export function QuickPublishButton({ post, onSuccess }: QuickPublishButtonProps)
     );
   }
 
-  // Publish doesn't require confirmation
+  // Publish button (subtle gray that turns to active green on hover)
   return (
     <Button
+      variant="ghost"
       size="icon"
-      variant="default"
       onClick={handleToggle}
-      title="Publish now"
       disabled={isLoading}
-      className="h-9 w-9 md:h-8 md:w-8 bg-green-600 hover:bg-green-700 text-white"
+      className={cn(
+        "h-9 w-9 md:h-8 md:w-8 text-muted-foreground hover:text-green-500 hover:bg-green-500/10 rounded-lg transition-all duration-200 shrink-0",
+        className
+      )}
+      title="Mark as Published"
     >
       {isLoading ? (
         <Loader2 className="w-4 h-4 animate-spin" />
       ) : (
-        <Send className="w-4 h-4" />
+        <Send className="w-4.5 h-4.5" />
       )}
     </Button>
   );

@@ -39,7 +39,7 @@ function getStatusColor(status: string): string {
   switch (status) {
     case "published": return "text-green-400";
     case "scheduled": return "text-blue-400";
-    default: return "text-muted-foreground";
+    default:          return "text-muted-foreground";
   }
 }
 
@@ -47,7 +47,7 @@ function getStatusIcon(status: string) {
   switch (status) {
     case "published": return <CheckCircle className="w-3 h-3 shrink-0" />;
     case "scheduled": return <Clock className="w-3 h-3 shrink-0" />;
-    default: return <FileText className="w-3 h-3 shrink-0" />;
+    default:          return <FileText className="w-3 h-3 shrink-0" />;
   }
 }
 
@@ -112,8 +112,8 @@ export function PostDatePicker({
   const selectedDate = value ? new Date(value) : null;
   const selectedDay =
     selectedDate &&
-      selectedDate.getFullYear() === viewYear &&
-      selectedDate.getMonth() + 1 === viewMonth
+    selectedDate.getFullYear() === viewYear &&
+    selectedDate.getMonth() + 1 === viewMonth
       ? selectedDate.getDate()
       : null;
 
@@ -202,7 +202,7 @@ export function PostDatePicker({
       {/* Calendar Dropdown */}
       {isOpen && (
         <div className="absolute z-50 mt-2 mb-4 bg-card border border-border rounded-xl shadow-xl w-full min-w-[310px] overflow-hidden">
-
+          
           {/* Calendrier */}
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
@@ -274,25 +274,25 @@ export function PostDatePicker({
                         "flex items-center justify-center",
 
                         isSelected &&
-                        "bg-orange-500 text-white font-bold shadow-[0_0_12px_rgba(249,115,22,0.4)]",
+                          "bg-orange-500 text-white font-bold shadow-[0_0_12px_rgba(249,115,22,0.4)]",
 
                         isActive &&
-                        !isSelected &&
-                        "bg-orange-500/20 text-orange-400 ring-2 ring-orange-500/40",
+                          !isSelected &&
+                          "bg-orange-500/20 text-orange-400 ring-2 ring-orange-500/40",
 
                         isToday &&
-                        !isSelected &&
-                        !isActive &&
-                        "border-2 border-orange-500/50 text-orange-400",
+                          !isSelected &&
+                          !isActive &&
+                          "border-2 border-orange-500/50 text-orange-400",
 
                         !isSelected &&
-                        !isActive &&
-                        "hover:bg-orange-500/10 hover:text-orange-400",
+                          !isActive &&
+                          "hover:bg-orange-500/10 hover:text-orange-400",
 
                         !isSelected &&
-                        !isActive &&
-                        !isToday &&
-                        (hasPosts ? "text-foreground" : "text-muted-foreground")
+                          !isActive &&
+                          !isToday &&
+                          (hasPosts ? "text-foreground" : "text-muted-foreground")
                       )}
                     >
                       {day}
@@ -343,21 +343,64 @@ export function PostDatePicker({
                   {activeDayPosts.map((post) => (
                     <div
                       key={post._id}
-                      className="bg-card rounded-lg p-2.5 border border-border overflow-hidden space-y-1.5"
+                      className="bg-card rounded-lg p-3 border border-border overflow-hidden space-y-2"
                     >
-                      {/* Titre + Quick Publish */}
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-semibold text-foreground truncate w-full min-w-0 leading-tight">
-                          {post.name}
+                      {/* 1. Titre du post */}
+                      <p className="text-xs font-semibold text-foreground truncate w-full min-w-0 leading-tight">
+                        {post.name}
+                      </p>
+
+                      {/* 2. Nom de Projet (juste en-dessous du titre) */}
+                      {post.projectName && (
+                        <p className="text-[10px] text-muted-foreground/85 font-medium truncate w-full min-w-0 -mt-1.5">
+                          {post.projectName}
                         </p>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                      )}
+
+                      {/* 3. Ligne du bas : Badges/Médias (Gauche) et Bouton Toggle (Droite) */}
+                      <div className="flex items-center justify-between gap-2 min-w-0 pt-0.5">
+                        
+                        {/* Gauche : Status + Type + Médias */}
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <div className={cn(
+                            "flex items-center gap-1 text-[11px] shrink-0",
+                            getStatusColor(post.status)
+                          )}>
+                            {getStatusIcon(post.status)}
+                            <span className="capitalize">{post.status}</span>
+                          </div>
+                          
+                          <span className="text-muted-foreground text-xs shrink-0">&middot;</span>
+                          
+                          <span className={`
+                            text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0
+                            ${post.type === "main" ? "bg-orange-500/10 text-orange-400" : "bg-purple-500/10 text-purple-400"}
+                          `}>
+                            {post.type === "main" ? "Main" : "Group"}
+                          </span>
+
+                          {/* Indicateurs médias enveloppés pour compatibilité TypeScript */}
+                          {post.has_images && (
+                            <span title="Contains Images" className="flex items-center shrink-0 ml-1">
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-400/80" />
+                            </span>
+                          )}
+                          {post.has_videos && (
+                            <span title="Contains Videos" className="flex items-center shrink-0">
+                              <Video className="w-3.5 h-3.5 text-purple-400/80" />
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Droite : Bouton Toggle Published moderne */}
+                        <div className="shrink-0">
                           <QuickPublishButton
                             post={{
                               _id: post._id,
                               project_id: post.project_id,
                               name: post.name,
                               content: post.content,
-                              type: post.type,
+                              type: post.type as "main" | "group",
                               platform: post.platform,
                               status: post.status as "draft" | "scheduled" | "published",
                               scheduled_date: post.scheduled_date,
@@ -376,47 +419,7 @@ export function PostDatePicker({
                             }}
                           />
                         </div>
-                      </div>
 
-                      {/* Nom de Projet */}
-                      {post.projectName && (
-                        <p className="text-[11px] text-muted-foreground truncate w-full min-w-0">
-                          {post.projectName}
-                        </p>
-                      )}
-
-                      {/* Badges + Media Icons */}
-                      <div className="flex items-center justify-between gap-1.5 min-w-0 flex-wrap">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                          <div className={cn(
-                            "flex items-center gap-1 text-[11px] shrink-0",
-                            getStatusColor(post.status)
-                          )}>
-                            {getStatusIcon(post.status)}
-                            <span className="capitalize">{post.status}</span>
-                          </div>
-                          <span className="text-muted-foreground text-xs shrink-0">&middot;</span>
-                          <span className={`
-                            text-[10px] px-1 py-0.5 rounded font-medium shrink-0
-                            ${post.type === "main" ? "bg-orange-500/10 text-orange-400" : "bg-purple-500/10 text-purple-400"}
-                          `}>
-                            {post.type === "main" ? "Main" : "Group"}
-                          </span>
-                        </div>
-
-                        {/* Media indicators */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          {post.has_images && (
-                            <span title="Contains Images" className="flex items-center">
-                              <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
-                            </span>
-                          )}
-                          {post.has_videos && (
-                            <span title="Contains Videos" className="flex items-center">
-                              <Video className="w-3.5 h-3.5 text-purple-400" />
-                            </span>
-                          )}
-                        </div>
                       </div>
                     </div>
                   ))}
