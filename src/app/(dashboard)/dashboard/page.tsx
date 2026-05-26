@@ -54,26 +54,44 @@ interface DashboardResponse {
 
 /**
  * Calculate a human-readable countdown from now to a target date.
- * Returns strings like "in 2 days", "in 3 hours", "tomorrow", etc.
+ * Normalizes dates to midnight to compute accurate calendar-day differences,
+ * preventing time-of-day rounding bugs.
  */
 function getCountdown(targetDate: string): string {
   const now = new Date();
   const target = new Date(targetDate);
-  const diffMs = target.getTime() - now.getTime();
 
-  if (diffMs < 0) return "overdue";
+  // Normaliser les deux dates à minuit pour calculer une différence de jours exacte
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate());
 
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffMs = targetMidnight.getTime() - nowMidnight.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0 && diffHours === 0) {
-    return `in ${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""}`;
+  if (diffDays < 0) {
+    return "overdue";
   }
+  
   if (diffDays === 0) {
-    return `in ${diffHours} hour${diffHours !== 1 ? "s" : ""}`;
+    // Si c'est aujourd'hui, on calcule s'il y a des heures/minutes précises restantes
+    const exactDiffMs = target.getTime() - now.getTime();
+    if (exactDiffMs <= 0) {
+      return "today";
+    }
+    
+    const diffMinutes = Math.floor(exactDiffMs / (1000 * 60));
+    const diffHours = Math.floor(exactDiffMs / (1000 * 60 * 60));
+    
+    if (diffHours === 0) {
+      return `today (in ${diffMinutes} min)`;
+    }
+    return `today (in ${diffHours}h)`;
   }
-  if (diffDays === 1) return "tomorrow";
+  
+  if (diffDays === 1) {
+    return "tomorrow";
+  }
+  
   return `in ${diffDays} days`;
 }
 
