@@ -126,6 +126,30 @@ export async function PUT(
       );
     }
 
+    const status = validation.data.status || existingPost.status;
+    const scheduled_date = validation.data.scheduled_date !== undefined 
+      ? validation.data.scheduled_date 
+      : existingPost.scheduled_date;
+      
+    const published_date = validation.data.published_date !== undefined 
+      ? validation.data.published_date 
+      : existingPost.published_date;
+
+    // Validation conditionnelle stricte côté serveur
+    if (status === "scheduled" && !scheduled_date) {
+      return NextResponse.json(
+        { success: false, error: "Scheduled date is required when status is scheduled" },
+        { status: 400 }
+      );
+    }
+
+    if (status === "published" && !published_date) {
+      return NextResponse.json(
+        { success: false, error: "Published date is required when status is published" },
+        { status: 400 }
+      );
+    }
+
     const project = await Project.findOne({
       _id: existingPost.project_id,
       user_id: user.userId,

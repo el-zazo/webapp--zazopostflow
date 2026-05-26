@@ -227,6 +227,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { status, scheduled_date, published_date } = validation.data;
+
+    // Validation conditionnelle stricte côté serveur
+    if (status === "scheduled" && !scheduled_date) {
+      return NextResponse.json(
+        { success: false, error: "Scheduled date is required when status is scheduled" },
+        { status: 400 }
+      );
+    }
+
+    if (status === "published" && !published_date) {
+      return NextResponse.json(
+        { success: false, error: "Published date is required when status is published" },
+        { status: 400 }
+      );
+    }
+
     await dbConnect();
 
     // Verify project belongs to user

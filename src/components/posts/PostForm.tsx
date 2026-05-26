@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,18 +34,38 @@ import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PostDatePicker } from "@/components/posts/PostDatePicker";
 
-const postFormSchema = z.object({
-  project_id: z.string().min(1, "Project is required"),
-  name: z.string().min(1, "Post name is required").max(100),
-  content: z.string().min(1, "Post content is required"),
-  type: z.enum(["main", "group"]),
-  platform: z.string().optional(),
-  scheduled_date: z.string().optional().nullable(),
-  published_date: z.string().optional().nullable(),
-  status: z.enum(["draft", "scheduled", "published"]),
-  has_videos: z.boolean(),
-  has_images: z.boolean(),
-});
+// Schéma de validation strict avec validations conditionnelles
+const postFormSchema = z
+  .object({
+    project_id: z.string().min(1, "Project is required"),
+    name: z.string().min(1, "Post name is required").max(100),
+    content: z.string().min(1, "Post content is required"),
+    type: z.enum(["main", "group"]),
+    platform: z.string().optional(),
+    scheduled_date: z.string().optional().nullable(),
+    published_date: z.string().optional().nullable(),
+    status: z.enum(["draft", "scheduled", "published"]),
+    has_videos: z.boolean(),
+    has_images: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    // Si scheduled -> scheduled_date obligatoire
+    if (data.status === "scheduled" && (!data.scheduled_date || data.scheduled_date.trim() === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Scheduled date is required when status is scheduled",
+        path: ["scheduled_date"],
+      });
+    }
+    // Si published -> published_date obligatoire
+    if (data.status === "published" && (!data.published_date || data.published_date.trim() === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Published date is required when status is published",
+        path: ["published_date"],
+      });
+    }
+  });
 
 type PostFormValues = z.infer<typeof postFormSchema>;
 
@@ -133,9 +153,23 @@ export function PostForm({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((data: any) => {
-            execute(async () => { await onSubmit(data as PostFormValues); });
-          })} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit((data: any) => {
+              // Nettoyage défensif des dates en fonction du statut choisi
+              const cleanData = { ...data };
+              if (cleanData.status === "draft") {
+                cleanData.scheduled_date = null;
+                cleanData.published_date = null;
+              } else if (cleanData.status === "scheduled") {
+                cleanData.published_date = null;
+              }
+
+              execute(async () => {
+                await onSubmit(cleanData as PostFormValues);
+              });
+            })}
+            className="space-y-4"
+          >
             {!defaultProjectId && (
               <FormField
                 control={form.control as any}
@@ -143,10 +177,7 @@ export function PostForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Project</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-background border-border">
                           <SelectValue placeholder="Select a project" />
@@ -209,10 +240,7 @@ export function PostForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-background border-border">
                           <SelectValue />
@@ -234,10 +262,7 @@ export function PostForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-background border-border">
                           <SelectValue />
@@ -255,37 +280,21 @@ export function PostForm({
               />
             </div>
 
-            <FormField
-              control={form.control as any}
-              name="scheduled_date"
-              render={({ field }) => (
-                <FormItem className="pb-4">
-                  <FormControl>
-                    <PostDatePicker
-                      value={field.value || ""}
-                      onChange={field.onChange}
-                      placeholder="Pick a scheduled date"
-                      label="Scheduled Date"
-                      excludePostId={post?._id}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* --- AFFICHAGE CONDITIONNEL DES DATES --- */}
 
-            {watchedStatus === "published" && (
+            {/* Mode Scheduled : On affiche uniquement la date de planification (obligatoire) */}
+            {watchedStatus === "scheduled" && (
               <FormField
                 control={form.control as any}
-                name="published_date"
+                name="scheduled_date"
                 render={({ field }) => (
                   <FormItem className="pb-4">
                     <FormControl>
                       <PostDatePicker
                         value={field.value || ""}
                         onChange={field.onChange}
-                        placeholder="Pick a published date"
-                        label="Published Date"
+                        placeholder="Pick a scheduled date (required)"
+                        label="Scheduled Date *"
                         excludePostId={post?._id}
                       />
                     </FormControl>
@@ -293,6 +302,49 @@ export function PostForm({
                   </FormItem>
                 )}
               />
+            )}
+
+            {/* Mode Published : On affiche la date de publication (obligatoire) et la date de planification originale (optionnelle) */}
+            {watchedStatus === "published" && (
+              <div className="space-y-4">
+                <FormField
+                  control={form.control as any}
+                  name="scheduled_date"
+                  render={({ field }) => (
+                    <FormItem className="pb-2">
+                      <FormControl>
+                        <PostDatePicker
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Pick a scheduled date (optional)"
+                          label="Scheduled Date (Optional)"
+                          excludePostId={post?._id}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control as any}
+                  name="published_date"
+                  render={({ field }) => (
+                    <FormItem className="pb-4">
+                      <FormControl>
+                        <PostDatePicker
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Pick a published date (required)"
+                          label="Published Date *"
+                          excludePostId={post?._id}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             )}
 
             {/* Media Content */}
