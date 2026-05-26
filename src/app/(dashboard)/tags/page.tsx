@@ -73,7 +73,7 @@ export default function TagsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -88,13 +88,13 @@ export default function TagsPage() {
     search !== "" ||
     filter !== "all" ||
     sortBy !== "createdAt" ||
-    sortOrder !== "desc";
+    sortOrder !== "asc";
 
   const handleReset = () => {
     setSearch("");
     setFilter("all");
     setSortBy("createdAt");
-    setSortOrder("desc");
+    setSortOrder("asc");
     setPage(1);
   };
 

@@ -7,7 +7,7 @@ export interface IProject extends Document {
   github_link: string;
   demo_link: string;
   tags: Types.ObjectId[];
-  status: "active" | "archived";
+  status: "active" | "archived" | "completed";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,7 +47,7 @@ const ProjectSchema = new Schema<IProject>(
     },
     status: {
       type: String,
-      enum: ["active", "archived"],
+      enum: ["active", "archived", "completed"],
       default: "active",
     },
   },

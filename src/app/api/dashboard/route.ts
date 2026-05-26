@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
 import Project from "@/models/Project";
 import Post from "@/models/Post";
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     const userId = user.userId;
 
     // Get all user project IDs - with fallback
-    let projectIds: any[] = [];
+    let projectIds: mongoose.Types.ObjectId[] = [];
     try {
       const userProjects = await Project.find({ user_id: userId }).select("_id");
       projectIds = userProjects.map((p) => p._id);
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
       ]);
 
     // Recent posts (last 5) - with defensive populate
-    let recentPosts: any[] = [];
+    let recentPosts: Record<string, unknown>[] = [];
     try {
       recentPosts = await Post.find({
         project_id: { $in: projectIds },
@@ -87,15 +88,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Safely serialize recent posts
-    const serializedRecentPosts = (recentPosts || []).map((p: any) => {
+    const serializedRecentPosts = (recentPosts || []).map((p: Record<string, unknown>) => {
       let projectName = "Unknown";
       let projectId = "";
 
       try {
         // project_id may be populated (object) or just an ObjectId (string)
-        if (p.project_id && typeof p.project_id === "object") {
-          projectName = p.project_id.name || "Unknown";
-          projectId = p.project_id._id?.toString() || "";
+        const proj = p.project_id as Record<string, unknown> | undefined;
+        if (proj && typeof proj === "object") {
+          projectName = (proj.name as string) || "Unknown";
+          const projId = proj._id as { toString(): string };
+          projectId = projId?.toString() || "";
         }
       } catch {
         projectName = "Unknown";
@@ -103,15 +106,107 @@ export async function GET(request: NextRequest) {
       }
 
       return {
-        _id: p._id?.toString() || "",
-        name: p.name || "Untitled Post",
-        status: p.status || "draft",
-        createdAt: p.createdAt?.toISOString() || new Date().toISOString(),
+        _id: (p._id as { toString(): string }).toString() || "",
+        name: (p.name as string) || "Untitled Post",
+        status: (p.status as string) || "draft",
+        createdAt: (p.createdAt as Date)?.toISOString() || new Date().toISOString(),
         projectName,
         projectId,
-        type: p.type || "main",
+        type: (p.type as string) || "main",
         has_images: Boolean(p.has_images),
         has_videos: Boolean(p.has_videos),
+      };
+    });
+
+    // Upcoming posts: status="scheduled" AND scheduled_date >= today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let upcomingPosts: Record<string, unknown>[] = [];
+    try {
+      upcomingPosts = await Post.find({
+        project_id: { $in: projectIds },
+        status: "scheduled",
+        scheduled_date: { $gte: today },
+      })
+        .sort({ scheduled_date: 1 })
+        .limit(5)
+        .populate("project_id", "name")
+        .lean()
+        .catch(() => []);
+    } catch {
+      upcomingPosts = [];
+    }
+
+    const serializedUpcomingPosts = (upcomingPosts || []).map((p: Record<string, unknown>) => {
+      let projectName = "Unknown";
+      let projectId = "";
+
+      try {
+        const proj = p.project_id as Record<string, unknown> | undefined;
+        if (proj && typeof proj === "object") {
+          projectName = (proj.name as string) || "Unknown";
+          const projId = proj._id as { toString(): string };
+          projectId = projId?.toString() || "";
+        }
+      } catch {
+        projectName = "Unknown";
+        projectId = "";
+      }
+
+      return {
+        _id: (p._id as { toString(): string }).toString() || "",
+        name: (p.name as string) || "Untitled Post",
+        status: (p.status as string) || "scheduled",
+        scheduled_date: p.scheduled_date
+          ? new Date(p.scheduled_date as Date).toISOString()
+          : null,
+        projectName,
+        projectId,
+      };
+    });
+
+    // Missed posts: status="scheduled" AND scheduled_date < today
+    let missedPosts: Record<string, unknown>[] = [];
+    try {
+      missedPosts = await Post.find({
+        project_id: { $in: projectIds },
+        status: "scheduled",
+        scheduled_date: { $lt: today },
+      })
+        .sort({ scheduled_date: -1 })
+        .populate("project_id", "name")
+        .lean()
+        .catch(() => []);
+    } catch {
+      missedPosts = [];
+    }
+
+    const serializedMissedPosts = (missedPosts || []).map((p: Record<string, unknown>) => {
+      let projectName = "Unknown";
+      let projectId = "";
+
+      try {
+        const proj = p.project_id as Record<string, unknown> | undefined;
+        if (proj && typeof proj === "object") {
+          projectName = (proj.name as string) || "Unknown";
+          const projId = proj._id as { toString(): string };
+          projectId = projId?.toString() || "";
+        }
+      } catch {
+        projectName = "Unknown";
+        projectId = "";
+      }
+
+      return {
+        _id: (p._id as { toString(): string }).toString() || "",
+        name: (p.name as string) || "Untitled Post",
+        status: (p.status as string) || "scheduled",
+        scheduled_date: p.scheduled_date
+          ? new Date(p.scheduled_date as Date).toISOString()
+          : null,
+        projectName,
+        projectId,
       };
     });
 
@@ -125,6 +220,8 @@ export async function GET(request: NextRequest) {
           publishedThisMonth,
         },
         recentPosts: serializedRecentPosts,
+        upcomingPosts: serializedUpcomingPosts,
+        missedPosts: serializedMissedPosts,
       },
     });
   } catch (error) {
@@ -140,6 +237,8 @@ export async function GET(request: NextRequest) {
           publishedThisMonth: 0,
         },
         recentPosts: [],
+        upcomingPosts: [],
+        missedPosts: [],
       },
     });
   }

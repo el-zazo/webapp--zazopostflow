@@ -39,6 +39,8 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
             className={
               project.status === "active"
                 ? "bg-green-500/10 text-green-500 border-green-500/20 whitespace-nowrap text-xs shrink-0"
+                : project.status === "completed"
+                ? "bg-blue-500/10 text-blue-500 border-blue-500/20 whitespace-nowrap text-xs shrink-0"
                 : "whitespace-nowrap text-xs shrink-0"
             }
           >

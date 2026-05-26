@@ -22,9 +22,9 @@ export default function ProjectsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState("active");
   const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Tags filter
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -141,16 +141,16 @@ export default function ProjectsPage() {
   // hasActiveFilters + Reset
   const hasActiveFilters =
     search !== "" ||
-    status !== "all" ||
+    status !== "active" ||
     sortBy !== "createdAt" ||
-    sortOrder !== "desc" ||
+    sortOrder !== "asc" ||
     selectedTagIds.length > 0;
 
   const handleReset = () => {
     setSearch("");
-    setStatus("all");
+    setStatus("active");
     setSortBy("createdAt");
-    setSortOrder("desc");
+    setSortOrder("asc");
     setSelectedTagIds([]);
     setPage(1);
   };

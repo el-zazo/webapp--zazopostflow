@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Settings,
   Tags,
+  Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,6 +38,11 @@ const navItems = [
     title: "Calendar",
     href: "/calendar",
     icon: CalendarDays,
+  },
+  {
+    title: "Shorts",
+    href: "/shorts",
+    icon: Film,
   },
   {
     title: "Settings",

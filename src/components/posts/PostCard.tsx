@@ -8,11 +8,13 @@ import { Post } from "@/types";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PostContentViewer } from "./PostContentViewer";
+import { QuickPublishButton } from "./QuickPublishButton";
 
 interface PostCardProps {
   post: Post;
   onEdit: (post: Post) => void;
   onDelete: (id: string) => void;
+  onStatusChange?: () => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -26,7 +28,7 @@ const typeColors: Record<string, string> = {
   group: "bg-purple-500/10 text-purple-400 border-purple-500/20",
 };
 
-export function PostCard({ post, onEdit, onDelete }: PostCardProps) {
+export function PostCard({ post, onEdit, onDelete, onStatusChange }: PostCardProps) {
   return (
     <Card className="bg-card border-border hover:border-orange-500/30 transition-all duration-300 group overflow-hidden w-full">
       <CardHeader className="pb-3">
@@ -108,6 +110,12 @@ export function PostCard({ post, onEdit, onDelete }: PostCardProps) {
         <div className="flex items-center gap-1.5 pt-2 border-t border-border">
           {/* View content */}
           <PostContentViewer post={post} />
+
+          {/* Quick Publish/Unpublish */}
+          <QuickPublishButton
+            post={post}
+            onSuccess={onStatusChange || (() => {})}
+          />
 
           {/* Edit post */}
           <Button

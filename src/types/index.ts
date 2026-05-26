@@ -17,7 +17,7 @@ export interface Project {
   github_link: string;
   demo_link: string;
   tags: { _id: string; name: string }[];
-  status: "active" | "archived";
+  status: "active" | "archived" | "completed";
   createdAt: string;
   updatedAt: string;
   postsCount?: number;

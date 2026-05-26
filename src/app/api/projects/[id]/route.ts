@@ -12,7 +12,7 @@ const projectUpdateSchema = z.object({
   github_link: z.string().url("Invalid GitHub URL").or(z.literal("")).optional(),
   demo_link: z.string().url("Invalid demo URL").or(z.literal("")).optional(),
   tags: z.array(z.string()).optional(),
-  status: z.enum(["active", "archived"]).optional(),
+  status: z.enum(["active", "archived", "completed"]).optional(),
 });
 
 export async function GET(

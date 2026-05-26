@@ -39,7 +39,7 @@ const projectFormSchema = z.object({
   description: z.string().max(500).optional(),
   github_link: z.string().url("Invalid URL").or(z.literal("")).optional(),
   demo_link: z.string().url("Invalid URL").or(z.literal("")).optional(),
-  status: z.enum(["active", "archived"]).optional(),
+  status: z.enum(["active", "archived", "completed"]).optional(),
 });
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
@@ -410,6 +410,7 @@ export function ProjectForm({ open, onClose, onSubmit, project }: ProjectFormPro
                     <SelectContent className="bg-card border-border">
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="archived">Archived</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

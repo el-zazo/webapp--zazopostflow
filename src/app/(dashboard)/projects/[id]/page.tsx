@@ -46,7 +46,7 @@ export default function ProjectPostsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [mediaFilter, setMediaFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -155,7 +155,7 @@ export default function ProjectPostsPage() {
     typeFilter !== "all" ||
     mediaFilter !== "all" ||
     sortBy !== "createdAt" ||
-    sortOrder !== "desc";
+    sortOrder !== "asc";
 
   const handleReset = () => {
     setSearch("");
@@ -163,7 +163,7 @@ export default function ProjectPostsPage() {
     setTypeFilter("all");
     setMediaFilter("all");
     setSortBy("createdAt");
-    setSortOrder("desc");
+    setSortOrder("asc");
     setPage(1);
   };
 
@@ -304,6 +304,8 @@ export default function ProjectPostsPage() {
                 className={
                   project.status === "active"
                     ? "bg-green-500/10 text-green-500 shrink-0"
+                    : project.status === "completed"
+                    ? "bg-blue-500/10 text-blue-500 border-blue-500/20 shrink-0"
                     : "shrink-0"
                 }
               >
@@ -449,6 +451,10 @@ export default function ProjectPostsPage() {
                     setFormOpen(true);
                   }}
                   onDelete={handleDeletePost}
+                  onStatusChange={() => {
+                    fetchPosts(page, abortControllerRef.current?.signal ?? new AbortController().signal);
+                    fetchProject();
+                  }}
                 />
               </div>
             ))}

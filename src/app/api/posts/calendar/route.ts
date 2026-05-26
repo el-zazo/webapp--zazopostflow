@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import Project from "@/models/Project";
 import { requireAuth } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
+/**
+ * GET /api/posts/calendar?year=2024&month=6
+ *
+ * Returns post counts per day for a given month using aggregation.
+ * Priority: uses published_date if available, otherwise scheduled_date.
+ * This fixes the pagination bug where only 10 posts were fetched via
+ * the old /api/posts?sort=newest endpoint, missing posts in the calendar.
+ */
 export async function GET(request: NextRequest) {
   const rl = rateLimit(request, { windowMs: 60000, max: 30, identifier: "api:posts:calendar:get" });
   if (!rl.success) {
@@ -36,61 +45,61 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
     const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
 
-    // Début et fin du mois
+    // Validate year and month
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+      return NextResponse.json(
+        { success: false, error: "Invalid year or month parameter" },
+        { status: 400 }
+      );
+    }
+
+    // Calculate month start/end dates
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
     // Get user's project IDs for ownership verification
     const userProjects = await Project.find({
       user_id: user.userId,
     }).select("_id");
-    const projectIds = userProjects.map((p) => p._id);
+    const userProjectIds = userProjects.map((p) => p._id);
 
-    // Récupérer tous les posts du mois (scheduled + published)
-    const posts = await Post.find({
-      project_id: { $in: projectIds },
-      $or: [
-        {
-          scheduled_date: {
-            $gte: startDate,
-            $lte: endDate,
+    // Aggregation pipeline to count posts per day efficiently
+    const pipeline: mongoose.PipelineStage[] = [
+      {
+        $match: {
+          project_id: { $in: userProjectIds },
+          $or: [
+            { published_date: { $gte: startDate, $lte: endDate } },
+            {
+              published_date: null,
+              scheduled_date: { $gte: startDate, $lte: endDate },
+            },
+          ],
+        },
+      },
+      {
+        $project: {
+          day: {
+            $dayOfMonth: {
+              $ifNull: ["$published_date", "$scheduled_date"],
+            },
           },
         },
-        {
-          published_date: {
-            $gte: startDate,
-            $lte: endDate,
-          },
+      },
+      {
+        $group: {
+          _id: "$day",
+          count: { $sum: 1 },
         },
-      ],
-    })
-      .select("_id name status type has_images has_videos scheduled_date published_date project_id")
-      .populate("project_id", "name")
-      .lean();
+      },
+    ];
 
-    // Grouper par jour
-    const postsByDay: Record<string, any[]> = {};
+    const results = await Post.aggregate(pipeline);
 
-    for (const post of posts) {
-      const p = post as any;
-      const dateToUse = p.scheduled_date || p.published_date;
-      if (!dateToUse) continue;
-
-      const day = new Date(dateToUse).getDate();
-      const key = String(day);
-
-      if (!postsByDay[key]) postsByDay[key] = [];
-
-      postsByDay[key].push({
-        _id: p._id.toString(),
-        name: p.name || "Untitled",
-        status: p.status,
-        type: p.type || "main",
-        has_images: p.has_images || false,
-        has_videos: p.has_videos || false,
-        project_name: p.project_id?.name || "Unknown",
-        date: new Date(dateToUse).toISOString(),
-      });
+    // Convert to { "1": 3, "15": 1 } format
+    const postsByDay: Record<string, number> = {};
+    for (const result of results) {
+      postsByDay[String(result._id)] = result.count;
     }
 
     return NextResponse.json({
