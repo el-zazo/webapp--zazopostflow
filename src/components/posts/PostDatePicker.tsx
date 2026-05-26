@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
@@ -370,7 +371,12 @@ export function PostDatePicker({
                       {/* 2. Nom de Projet (juste en-dessous du titre) */}
                       {post.projectName && (
                         <p className="text-[10px] text-muted-foreground/85 font-medium truncate w-full min-w-0 -mt-1.5">
-                          {post.projectName}
+                          <Link
+                            href={`/projects/${post.project_id}`}
+                            className="hover:text-orange-500 transition-colors underline-offset-2 hover:underline"
+                          >
+                            {post.projectName}
+                          </Link>
                         </p>
                       )}
 
