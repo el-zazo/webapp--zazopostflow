@@ -12,57 +12,76 @@ interface CalendarPost {
   date: string;
 }
 
-interface PostsByDay {
-  [day: string]: CalendarPost[];
-}
-
 export function useDatePickerPosts(year: number, month: number) {
-  const [postsByDay, setPostsByDay] = useState<PostsByDay>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [countsByDay, setCountsByDay] = useState<Record<string, number>>({});
+  const [dayPosts, setDayPosts] = useState<CalendarPost[]>([]);
+  const [loadingCounts, setLoadingCounts] = useState(false);
+  const [loadingDayPosts, setLoadingDayPosts] = useState(false);
 
-  const fetchPosts = useCallback(async () => {
+  // 1. Fetch des totaux par jour pour le mois sélectionné
+  const fetchCounts = useCallback(async () => {
     if (!year || !month) return;
 
-    setIsLoading(true);
+    setLoadingCounts(true);
     try {
-      const res = await apiFetch(
-        `/api/posts/calendar?year=${year}&month=${month}`
-      );
-      const data = (await res.json()) as { success: boolean; data: PostsByDay };
+      const res = await apiFetch(`/api/posts/calendar?year=${year}&month=${month}`);
+      const data = (await res.json()) as { success: boolean; data: Record<string, number> };
 
       if (data.success) {
-        setPostsByDay(data.data);
+        setCountsByDay(data.data);
       }
     } catch (error) {
-      console.error("useDatePickerPosts error:", error);
-      setPostsByDay({});
+      console.error("useDatePickerPosts counts error:", error);
+      setCountsByDay({});
     } finally {
-      setIsLoading(false);
+      setLoadingCounts(false);
     }
   }, [year, month]);
 
+  // Re-fetch les counts quand le mois/année change + Reset les posts chargés du jour actif
   useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+    fetchCounts();
+    setDayPosts([]);
+  }, [fetchCounts]);
 
-  const getPostsForDay = (day: number): CalendarPost[] => {
-    return postsByDay[String(day)] || [];
-  };
+  // 2. Fetch des posts complets pour un jour spécifique au clic
+  const fetchDayPosts = useCallback(async (day: number) => {
+    if (!year || !month || !day) return;
+
+    setLoadingDayPosts(true);
+    try {
+      const res = await apiFetch(
+        `/api/posts/calendar/day?year=${year}&month=${month}&day=${day}`
+      );
+      const data = (await res.json()) as { success: boolean; data: CalendarPost[] };
+
+      if (data.success) {
+        setDayPosts(data.data);
+      }
+    } catch (error) {
+      console.error("useDatePickerPosts day posts error:", error);
+      setDayPosts([]);
+    } finally {
+      setLoadingDayPosts(false);
+    }
+  }, [year, month]);
 
   const hasPostsOnDay = (day: number): boolean => {
-    return (postsByDay[String(day)] || []).length > 0;
+    return (countsByDay[String(day)] || 0) > 0;
   };
 
   const getPostCountForDay = (day: number): number => {
-    return (postsByDay[String(day)] || []).length;
+    return countsByDay[String(day)] || 0;
   };
 
   return {
-    postsByDay,
-    isLoading,
-    getPostsForDay,
+    countsByDay,
+    dayPosts,
+    loadingCounts,
+    loadingDayPosts,
     hasPostsOnDay,
     getPostCountForDay,
-    refetch: fetchPosts,
+    fetchDayPosts,
+    refetchCounts: fetchCounts,
   };
 }

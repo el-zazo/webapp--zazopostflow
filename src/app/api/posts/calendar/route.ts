@@ -9,10 +9,8 @@ import { rateLimit } from "@/lib/rate-limit";
 /**
  * GET /api/posts/calendar?year=2024&month=6
  *
- * Returns post counts per day for a given month using aggregation.
- * Priority: uses published_date if available, otherwise scheduled_date.
- * This fixes the pagination bug where only 10 posts were fetched via
- * the old /api/posts?sort=newest endpoint, missing posts in the calendar.
+ * Renvoie uniquement les totaux de posts par jour pour un mois donné (mode counts).
+ * Utilisé par le Calendrier et le DatePicker pour afficher les indicateurs de jours.
  */
 export async function GET(request: NextRequest) {
   const rl = rateLimit(request, { windowMs: 60000, max: 30, identifier: "api:posts:calendar:get" });
@@ -45,7 +43,6 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
     const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
 
-    // Validate year and month
     if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
       return NextResponse.json(
         { success: false, error: "Invalid year or month parameter" },
@@ -53,17 +50,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Calculate month start/end dates
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    // Get user's project IDs for ownership verification
     const userProjects = await Project.find({
       user_id: user.userId,
     }).select("_id");
     const userProjectIds = userProjects.map((p) => p._id);
 
-    // Aggregation pipeline to count posts per day efficiently
     const pipeline: mongoose.PipelineStage[] = [
       {
         $match: {
@@ -96,7 +90,6 @@ export async function GET(request: NextRequest) {
 
     const results = await Post.aggregate(pipeline);
 
-    // Convert to { "1": 3, "15": 1 } format
     const postsByDay: Record<string, number> = {};
     for (const result of results) {
       postsByDay[String(result._id)] = result.count;

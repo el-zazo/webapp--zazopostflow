@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
 import { useDatePickerPosts } from "@/hooks/useDatePickerPosts";
 import { cn } from "@/lib/utils";
 
@@ -51,14 +50,6 @@ function getStatusIcon(status: string) {
   }
 }
 
-function getDotColor(status: string): string {
-  switch (status) {
-    case "published": return "bg-green-500";
-    case "scheduled": return "bg-blue-500";
-    default:          return "bg-muted-foreground";
-  }
-}
-
 export function PostDatePicker({
   value,
   onChange,
@@ -77,16 +68,19 @@ export function PostDatePicker({
     value ? new Date(value).getMonth() + 1 : today.getMonth() + 1
   );
 
-  // Premier click → jour actif (affiche posts en bas)
-  // Deuxième click → sélectionne la date
   const [activeDay, setActiveDay] = useState<number | null>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { getPostsForDay, hasPostsOnDay, getPostCountForDay, isLoading } =
-    useDatePickerPosts(viewYear, viewMonth);
+  const {
+    dayPosts,
+    loadingCounts,
+    loadingDayPosts,
+    hasPostsOnDay,
+    getPostCountForDay,
+    fetchDayPosts,
+  } = useDatePickerPosts(viewYear, viewMonth);
 
-  // Fermer si click en dehors
+  // Fermer si clic en dehors
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -101,7 +95,6 @@ export function PostDatePicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  // Reset activeDay quand on change de mois
   const goToPrevMonth = () => {
     setActiveDay(null);
     if (viewMonth === 1) { setViewMonth(12); setViewYear((y) => y - 1); }
@@ -131,26 +124,24 @@ export function PostDatePicker({
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
 
-  // ─── Logique click jour ──────────────────────────────────────────────────
   const handleDayClick = (day: number) => {
     if (activeDay === day) {
-      // 2ème click sur le même jour → SÉLECTIONNER la date
+      // 2ème clic → SÉLECTIONNER la date
       const dateStr = `${viewYear}-${String(viewMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00`;
       onChange(dateStr);
       setIsOpen(false);
       setActiveDay(null);
     } else {
-      // 1er click → afficher les posts de ce jour en bas
+      // 1er clic → Afficher et charger les posts de ce jour
       setActiveDay(day);
+      fetchDayPosts(day);
     }
   };
 
-  // Posts du jour actif (panel bas)
-  const activeDayPosts = activeDay
-    ? getPostsForDay(activeDay).filter(
-        (p) => !excludePostId || p._id !== excludePostId
-      )
-    : [];
+  // Filtrer les posts du jour pour exclure le post en cours d'édition
+  const activeDayPosts = dayPosts.filter(
+    (p) => !excludePostId || p._id !== excludePostId
+  );
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -209,11 +200,9 @@ export function PostDatePicker({
       {/* Calendar Dropdown */}
       {isOpen && (
         <div className="absolute z-50 mt-2 mb-4 bg-card border border-border rounded-xl shadow-xl w-full min-w-[300px] overflow-hidden">
-
-          {/* ── Calendrier ── */}
+          
+          {/* Calendrier */}
           <div className="p-4">
-
-            {/* Navigation mois */}
             <div className="flex items-center justify-between mb-4">
               <Button
                 type="button"
@@ -227,7 +216,7 @@ export function PostDatePicker({
 
               <div className="text-sm font-semibold text-foreground flex items-center gap-2">
                 {MONTHS[viewMonth - 1]} {viewYear}
-                {isLoading && (
+                {loadingCounts && (
                   <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
                 )}
               </div>
@@ -243,7 +232,6 @@ export function PostDatePicker({
               </Button>
             </div>
 
-            {/* Jours de la semaine */}
             <div className="grid grid-cols-7 mb-2">
               {DAYS_OF_WEEK.map((d) => (
                 <div
@@ -255,7 +243,6 @@ export function PostDatePicker({
               ))}
             </div>
 
-            {/* Grille des jours */}
             <div className="grid grid-cols-7 gap-y-1">
               {Array.from({ length: firstDay }).map((_, i) => (
                 <div key={`empty-${i}`} />
@@ -269,10 +256,8 @@ export function PostDatePicker({
                   today.getMonth() + 1 === viewMonth &&
                   today.getDate() === day;
 
-                const dayPosts = getPostsForDay(day).filter(
-                  (p) => !excludePostId || p._id !== excludePostId
-                );
-                const hasFilteredPosts = dayPosts.length > 0;
+                const hasPosts = hasPostsOnDay(day);
+                const postCount = getPostCountForDay(day);
 
                 return (
                   <div
@@ -286,82 +271,51 @@ export function PostDatePicker({
                         "w-8 h-8 rounded-full text-xs font-medium transition-all duration-150",
                         "flex items-center justify-center",
 
-                        // Sélectionné (date confirmée)
                         isSelected &&
                           "bg-orange-500 text-white font-bold shadow-[0_0_12px_rgba(249,115,22,0.4)]",
 
-                        // Actif (1er click, affiche posts)
                         isActive &&
                           !isSelected &&
                           "bg-orange-500/20 text-orange-400 ring-2 ring-orange-500/40",
 
-                        // Aujourd'hui
                         isToday &&
                           !isSelected &&
                           !isActive &&
                           "border-2 border-orange-500/50 text-orange-400",
 
-                        // Hover normal
                         !isSelected &&
                           !isActive &&
                           "hover:bg-orange-500/10 hover:text-orange-400",
 
-                        // Couleur texte
                         !isSelected &&
                           !isActive &&
                           !isToday &&
-                          (hasFilteredPosts
-                            ? "text-foreground"
-                            : "text-muted-foreground")
+                          (hasPosts ? "text-foreground" : "text-muted-foreground")
                       )}
                     >
                       {day}
                     </button>
 
-                    {/* Points indicateurs sous le jour */}
-                    {hasFilteredPosts && (
+                    {/* Indicateurs simplifiés sous le jour */}
+                    {hasPosts && (
                       <div className="flex gap-0.5 mt-0.5 justify-center">
-                        {dayPosts.slice(0, 3).map((post: any, idx: number) => (
+                        {Array.from({ length: Math.min(postCount, 3) }).map((_, idx) => (
                           <div
                             key={idx}
-                            className={cn(
-                              "w-1 h-1 rounded-full",
-                              getDotColor(post.status)
-                            )}
+                            className="w-1 h-1 rounded-full bg-orange-500/60"
                           />
                         ))}
-                        {dayPosts.length > 3 && (
-                          <div className="w-1 h-1 rounded-full bg-muted-foreground" />
-                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-
-            {/* Légende */}
-            <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-xs text-muted-foreground">Scheduled</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-xs text-muted-foreground">Published</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Draft</span>
-              </div>
-            </div>
           </div>
 
-          {/* ── Panel Posts du Jour (EN BAS) ── */}
+          {/* Panel Posts du Jour (EN BAS) */}
           {activeDay !== null && (
             <div className="border-t border-border bg-muted/20">
-
-              {/* Header du panel */}
               <div className="flex items-center justify-between px-4 py-2.5">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-sm font-semibold text-foreground">
@@ -371,8 +325,6 @@ export function PostDatePicker({
                     {activeDayPosts.length} post{activeDayPosts.length !== 1 ? "s" : ""}
                   </Badge>
                 </div>
-
-                {/* Hint click */}
                 <span className="text-xs text-muted-foreground shrink-0">
                   {activeDayPosts.length > 0
                     ? "Click again to select"
@@ -380,34 +332,26 @@ export function PostDatePicker({
                 </span>
               </div>
 
-              {/* Liste posts */}
-              {activeDayPosts.length > 0 ? (
-                <div
-                  className="overflow-y-auto max-h-[200px] px-4 pb-3 space-y-2"
-                  style={{ overflowY: "auto" }}
-                >
+              {loadingDayPosts ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                </div>
+              ) : activeDayPosts.length > 0 ? (
+                <div className="overflow-y-auto max-h-[200px] px-4 pb-3 space-y-2">
                   {activeDayPosts.map((post: any) => (
                     <div
                       key={post._id}
                       className="bg-card rounded-lg p-2.5 border border-border overflow-hidden space-y-1.5"
                     >
-                      {/* Ligne 1: Titre */}
                       <p className="text-xs font-medium text-foreground truncate w-full min-w-0 leading-tight">
                         {post.name}
                       </p>
-
-                      {/* Ligne 2: Projet */}
                       <p className="text-xs text-muted-foreground truncate w-full min-w-0">
                         {post.project_name}
                       </p>
 
-                      {/* Ligne 3: Status + Type + Media */}
                       <div className="flex items-center justify-between gap-1.5 min-w-0 flex-wrap">
-
-                        {/* Gauche: Status + Type */}
                         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-
-                          {/* Status */}
                           <div className={cn(
                             "flex items-center gap-1 text-xs shrink-0",
                             getStatusColor(post.status)
@@ -415,30 +359,13 @@ export function PostDatePicker({
                             {getStatusIcon(post.status)}
                             <span className="capitalize">{post.status}</span>
                           </div>
-
-                          {/* Séparateur */}
                           <span className="text-muted-foreground text-xs shrink-0">&middot;</span>
-
-                          {/* Type */}
                           <span className={`
                             text-xs px-1 py-0.5 rounded font-medium shrink-0
-                            ${post.type === "main"
-                              ? "bg-orange-500/10 text-orange-400"
-                              : "bg-purple-500/10 text-purple-400"
-                            }
+                            ${post.type === "main" ? "bg-orange-500/10 text-orange-400" : "bg-purple-500/10 text-purple-400"}
                           `}>
                             {post.type === "main" ? "Main" : "Group"}
                           </span>
-                        </div>
-
-                        {/* Droite: Media icons */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          {post.has_images && (
-                            <ImageIcon className="w-3 h-3 text-blue-400" />
-                          )}
-                          {post.has_videos && (
-                            <Video className="w-3 h-3 text-purple-400" />
-                          )}
                         </div>
                       </div>
                     </div>
@@ -454,7 +381,7 @@ export function PostDatePicker({
             </div>
           )}
 
-          {/* ── Footer ── */}
+          {/* Footer */}
           <div className="border-t border-border px-4 py-2 flex items-center justify-between">
             <Button
               type="button"
@@ -466,6 +393,7 @@ export function PostDatePicker({
                 setViewYear(now.getFullYear());
                 setViewMonth(now.getMonth() + 1);
                 setActiveDay(now.getDate());
+                fetchDayPosts(now.getDate());
               }}
             >
               Today
