@@ -1,15 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api-client";
 
-interface CalendarPost {
+export interface CalendarPost {
   _id: string;
   name: string;
+  content: string;
   status: string;
-  type: string;
+  type: "main" | "group";
+  platform: string;
   has_images: boolean;
   has_videos: boolean;
-  project_name: string;
-  date: string;
+  scheduled_date: string | null;
+  published_date: string | null;
+  project_id: string;
+  projectName?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function useDatePickerPosts(year: number, month: number) {

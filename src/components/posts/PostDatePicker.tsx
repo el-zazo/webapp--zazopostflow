@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDatePickerPosts } from "@/hooks/useDatePickerPosts";
+import { QuickPublishButton } from "@/components/posts/QuickPublishButton";
 import { cn } from "@/lib/utils";
 
 interface PostDatePickerProps {
@@ -78,6 +79,7 @@ export function PostDatePicker({
     hasPostsOnDay,
     getPostCountForDay,
     fetchDayPosts,
+    refetchCounts,
   } = useDatePickerPosts(viewYear, viewMonth);
 
   // Fermer si clic en dehors
@@ -199,7 +201,7 @@ export function PostDatePicker({
 
       {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 mb-4 bg-card border border-border rounded-xl shadow-xl w-full min-w-[300px] overflow-hidden">
+        <div className="absolute z-50 mt-2 mb-4 bg-card border border-border rounded-xl shadow-xl w-full min-w-[310px] overflow-hidden">
           
           {/* Calendrier */}
           <div className="p-4">
@@ -296,7 +298,7 @@ export function PostDatePicker({
                       {day}
                     </button>
 
-                    {/* Indicateurs simplifiés sous le jour */}
+                    {/* Indicateurs de points sous le jour */}
                     {hasPosts && (
                       <div className="flex gap-0.5 mt-0.5 justify-center">
                         {Array.from({ length: Math.min(postCount, 3) }).map((_, idx) => (
@@ -337,23 +339,57 @@ export function PostDatePicker({
                   <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
                 </div>
               ) : activeDayPosts.length > 0 ? (
-                <div className="overflow-y-auto max-h-[200px] px-4 pb-3 space-y-2">
-                  {activeDayPosts.map((post: any) => (
+                <div className="overflow-y-auto max-h-[180px] px-4 pb-3 space-y-2">
+                  {activeDayPosts.map((post) => (
                     <div
                       key={post._id}
                       className="bg-card rounded-lg p-2.5 border border-border overflow-hidden space-y-1.5"
                     >
-                      <p className="text-xs font-medium text-foreground truncate w-full min-w-0 leading-tight">
-                        {post.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate w-full min-w-0">
-                        {post.project_name}
-                      </p>
+                      {/* Titre + Quick Publish */}
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-semibold text-foreground truncate w-full min-w-0 leading-tight">
+                          {post.name}
+                        </p>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <QuickPublishButton
+                            post={{
+                              _id: post._id,
+                              project_id: post.project_id,
+                              name: post.name,
+                              content: post.content,
+                              type: post.type,
+                              platform: post.platform,
+                              status: post.status,
+                              scheduled_date: post.scheduled_date,
+                              published_date: post.published_date,
+                              has_images: post.has_images,
+                              has_videos: post.has_videos,
+                              createdAt: post.createdAt,
+                              updatedAt: post.updatedAt,
+                              projectName: post.projectName,
+                            }}
+                            onSuccess={() => {
+                              if (activeDay) {
+                                fetchDayPosts(activeDay);
+                                refetchCounts();
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
 
+                      {/* Nom de Projet */}
+                      {post.projectName && (
+                        <p className="text-[11px] text-muted-foreground truncate w-full min-w-0">
+                          {post.projectName}
+                        </p>
+                      )}
+
+                      {/* Badges + Media Icons */}
                       <div className="flex items-center justify-between gap-1.5 min-w-0 flex-wrap">
                         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                           <div className={cn(
-                            "flex items-center gap-1 text-xs shrink-0",
+                            "flex items-center gap-1 text-[11px] shrink-0",
                             getStatusColor(post.status)
                           )}>
                             {getStatusIcon(post.status)}
@@ -361,11 +397,21 @@ export function PostDatePicker({
                           </div>
                           <span className="text-muted-foreground text-xs shrink-0">&middot;</span>
                           <span className={`
-                            text-xs px-1 py-0.5 rounded font-medium shrink-0
+                            text-[10px] px-1 py-0.5 rounded font-medium shrink-0
                             ${post.type === "main" ? "bg-orange-500/10 text-orange-400" : "bg-purple-500/10 text-purple-400"}
                           `}>
                             {post.type === "main" ? "Main" : "Group"}
                           </span>
+                        </div>
+
+                        {/* Media indicators */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {post.has_images && (
+                            <ImageIcon className="w-3.5 h-3.5 text-blue-400" title="Contains Images" />
+                          )}
+                          {post.has_videos && (
+                            <Video className="w-3.5 h-3.5 text-purple-400" title="Contains Videos" />
+                          )}
                         </div>
                       </div>
                     </div>
