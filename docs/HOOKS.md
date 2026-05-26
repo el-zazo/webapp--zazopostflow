@@ -63,23 +63,25 @@ None.
 
 **Params**: `(year: number, month: number)`
 
-**Returns**: `{ postsByDay, isLoading, getPostsForDay, hasPostsOnDay, getPostCountForDay, refetch }`
+**Returns**: `{ countsByDay, dayPosts, loadingCounts, loadingDayPosts, hasPostsOnDay, getPostCountForDay, fetchDayPosts, refetchCounts }`
 
 ### Description
 
-Fetches calendar posts from `/api/posts/calendar?year=X&month=Y` and groups them by day number. Used by the PostDatePicker component to show colored dots on days that have posts.
+Fetches post COUNTS per day from `/api/posts/calendar` and provides a function to fetch full post objects for specific days via `/api/posts/calendar/day`. Used by PostDatePicker to show colored dots on days that have posts.
 
-The hook automatically refetches when the `year` or `month` parameters change.
+The hook fetches counts from `GET /api/posts/calendar?year=&month=` (returns `Record<string, number>`) and fetches day posts from `GET /api/posts/calendar/day?year=&month=&day=` (returns `CalendarPost[]`).
+
+A `useEffect` re-fetches counts when `year` or `month` changes; it also resets `dayPosts` to `[]`.
 
 ### Usage
 
 ```tsx
-const { postsByDay, isLoading, hasPostsOnDay, getPostsForDay } = useDatePickerPosts(2024, 6);
+const { countsByDay, loadingCounts, hasPostsOnDay, getPostCountForDay, fetchDayPosts } = useDatePickerPosts(2024, 6);
 
 // Check if a specific day has posts
 if (hasPostsOnDay(15)) {
-  const posts = getPostsForDay(15);
-  // render dots or indicators
+  const count = getPostCountForDay(15); // returns number
+  await fetchDayPosts(15); // fetches full posts for day 15
 }
 ```
 
@@ -94,12 +96,35 @@ if (hasPostsOnDay(15)) {
 
 | Property              | Type                               | Description                                                      |
 |-----------------------|------------------------------------|------------------------------------------------------------------|
-| `postsByDay`          | `Record<number, CalendarPost[]>`   | Object mapping day numbers to their posts                        |
-| `isLoading`           | `boolean`                          | Whether the calendar data is currently being fetched             |
-| `getPostsForDay`      | `(day: number) => CalendarPost[]`  | Returns the array of posts for a given day (empty array if none) |
-| `hasPostsOnDay`       | `(day: number) => boolean`         | Whether a given day has any posts                                |
+| `countsByDay`         | `Record<string, number>`           | Object mapping day numbers (as strings) to post counts           |
+| `dayPosts`            | `CalendarPost[]`                   | Posts for a specific fetched day (starts empty)                  |
+| `loadingCounts`       | `boolean`                          | Whether count data is currently being fetched                    |
+| `loadingDayPosts`     | `boolean`                          | Whether day-specific posts are being fetched                     |
+| `hasPostsOnDay`       | `(day: number) => boolean`         | Whether a given day has any posts (based on counts)              |
 | `getPostCountForDay`  | `(day: number) => number`          | Number of posts on a given day                                   |
-| `refetch`             | `() => void`                       | Manually trigger a refetch of the calendar data                  |
+| `fetchDayPosts`       | `(day: number) => Promise<void>`   | Fetches full post objects for a specific day                     |
+| `refetchCounts`       | `() => Promise<void>`              | Manually refetch the counts data                                 |
+
+### CalendarPost Interface
+
+The exported `CalendarPost` interface includes the following fields:
+
+| Field             | Type     | Description                          |
+|-------------------|----------|--------------------------------------|
+| `_id`             | `string` | Post ID                              |
+| `name`            | `string` | Post name                            |
+| `content`         | `string` | Post content                         |
+| `status`          | `string` | Post status                          |
+| `type`            | `string` | Post type                            |
+| `platform`        | `string` | Target platform                      |
+| `has_images`      | `boolean`| Whether the post has images          |
+| `has_videos`      | `boolean`| Whether the post has videos          |
+| `scheduled_date`  | `string` | Scheduled publication date           |
+| `published_date`  | `string` | Actual publication date              |
+| `project_id`      | `string` | Associated project ID                |
+| `projectName`     | `string` | Project name (optional)              |
+| `createdAt`       | `string` | Creation timestamp                   |
+| `updatedAt`       | `string` | Last update timestamp                |
 
 ---
 
@@ -111,14 +136,16 @@ if (hasPostsOnDay(15)) {
 
 ### Description
 
-Responsive breakpoint hook. Uses `window.matchMedia` to detect mobile viewport. Used for responsive sidebar and layout behavior.
+Responsive breakpoint hook. Uses `window.matchMedia` to detect mobile viewport (MOBILE_BREAKPOINT = 768px, matching max-width: 767px). Used for responsive sidebar and layout behavior.
 
 This hook listens for changes to the viewport size and updates reactively, so components can adapt in real-time when the window is resized or the device orientation changes.
+
+**Note**: Returns `false` on first render before the effect runs (initial state `undefined` → `!!undefined` = `false`).
 
 ### Usage
 
 ```tsx
-const isMobile = useMobile();
+const isMobile = useIsMobile();
 
 return (
   <div>
@@ -149,6 +176,8 @@ None.
 
 Standard shadcn/ui toast hook. Used throughout the app for success/error notifications. This hook is a thin wrapper around the shadcn/ui toast provider, providing a simple API for displaying transient notifications to the user.
 
+Only one toast is visible at a time (TOAST_LIMIT = 1). New toasts replace the previous one.
+
 ### Usage
 
 ```tsx
@@ -177,16 +206,14 @@ None.
 
 ### Return Values
 
-The hook returns the full shadcn/ui toast state and actions. The most commonly used function is:
-
-| Property | Type                                                                 | Description                        |
-|----------|----------------------------------------------------------------------|------------------------------------|
-| `toast`  | `(options: { title?: string, description?: string, variant?: "default" \| "destructive" }) => void` | Displays a toast notification      |
-
-For the complete return type, refer to the shadcn/ui toast documentation.
+| Property  | Type                                                                                                                                 | Description                                                     |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| `toasts`  | `Toast[]`                                                                                                                            | Array of currently active toasts                                |
+| `toast`   | `(options: { title?: string, description?: string, variant?: "default" \| "destructive" }) => { id: string, dismiss: () => void, update: (props: ToasterToast) => void }` | Displays a toast notification; returns id, dismiss, and update  |
+| `dismiss` | `(toastId?: string) => void`                                                                                                         | Dismiss a specific toast (or all toasts if no ID provided)      |
 
 ### Notes
 
-- Toasts are automatically dismissed after a timeout.
+- Toasts are automatically dismissed after a timeout (TOAST_REMOVE_DELAY = 1000000 ms, ~16.67 minutes).
 - Use `variant: "destructive"` for error states to display a red-themed notification.
-- Multiple toasts can be displayed simultaneously and are stacked vertically.
+- Only one toast is visible at a time (TOAST_LIMIT = 1). New toasts replace the previous one.

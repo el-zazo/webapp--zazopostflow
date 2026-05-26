@@ -175,7 +175,7 @@ export default function dbConnect(): Promise<typeof mongoose>
 | `github_link` | String | — | `""` | URL to the project's GitHub repository |
 | `demo_link` | String | — | `""` | URL to the project's live demo |
 | `tags` | [ObjectId] (ref: `Tag`) | — | `[]` | Array of tag references; tags are shared across projects |
-| `status` | String | enum: `["active", "archived"]` | `"active"` | Soft-delete / archival flag |
+| `status` | String | enum: `["active", "archived", "completed"]` | `"active"` | Project lifecycle status |
 
 **Timestamps:** `createdAt`, `updatedAt` (auto-managed by Mongoose)
 
@@ -192,7 +192,7 @@ export default function dbConnect(): Promise<typeof mongoose>
 
 - **Unique project names per user:** The compound unique index `{ user_id: 1, name: 1 }` ensures that one user cannot create two projects with the same name. This prevents confusion in the UI and in URL-based routing.
 
-- **Soft archive (`status: "archived"`):** Projects are never hard-deleted by the user directly. Instead, they are archived. This preserves the data for audit/history purposes while hiding it from the main project list. Only an admin-level account deletion triggers hard deletion.
+- **Project status (`status` field):** The `status` field has three possible values: `"active"` (default, visible in the main project list), `"archived"` (hidden from the main list but preserved for reference), and `"completed"` (marks the project as finished). The `"archived"` status acts as a filter state to hide projects from the main view. Users can also hard-delete a project via `DELETE /api/projects/[id]`, which triggers a cascade that removes the project and all its associated posts.
 
 - **Computed counts (`postsCount`, `tagsCount`):** These fields are **not stored** in the database. They are computed at query time using MongoDB aggregation pipelines (`$lookup` + `$count`). This avoids count staleness and the complexity of increment/decrement maintenance on every post/tag change.
 
@@ -368,7 +368,7 @@ interface Project {
   github_link: string;
   demo_link: string;
   tags: { _id: string; name: string }[];
-  status: "active" | "archived";
+  status: "active" | "archived" | "completed";
   createdAt: string;
   updatedAt: string;
   postsCount?: number; // computed via aggregation, not stored

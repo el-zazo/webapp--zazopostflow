@@ -12,19 +12,25 @@ Complete UI component documentation for ZazoPostFlow. Every custom component is 
   - [PostCard](#postcard)
   - [PostContentViewer](#postcontentviewer)
   - [PostDatePicker](#postdatepicker)
+  - [QuickPublishButton](#quickpublishbutton)
 - [Project Components](#project-components)
   - [ProjectForm](#projectform)
   - [ProjectFilters](#projectfilters)
   - [ProjectCard](#projectcard)
+- [Tag Components](#tag-components)
+  - [EditTagDialog](#edittagdialog)
 - [Settings Components](#settings-components)
   - [TwoFactorSetup](#twofactorsetup)
   - [RegenerateBackupCodes](#regeneratebackupcodes)
+- [Dashboard Components](#dashboard-components)
+  - [StatsCard](#statscard)
 - [Shared Components](#shared-components)
   - [ConfirmDialog](#confirmdialog)
   - [CopyButton](#copybutton)
   - [LogoutButton](#logoutbutton)
-  - [PremiumPagination](#miumpagination)
-  - [StatsCard](#statscard)
+  - [PremiumPagination](#premiumpagination)
+  - [TagsFilter](#tagsfilter)
+  - [SortControls](#sortcontrols)
 
 ---
 
@@ -254,6 +260,41 @@ Custom date picker with a calendar dropdown that shows colored dots on days cont
 
 ---
 
+### QuickPublishButton
+
+**File:** `src/components/posts/QuickPublishButton.tsx`
+
+A premium publish/unpublish toggler with dual-confirmation. When the post is published, clicking shows a `ConfirmDialog` to unpublish (reverts to scheduled/draft). When not published, clicking shows a `ConfirmDialog` to publish now. Uses `useRef` for double-click protection. Sends `PUT /api/posts/{id}` with `{ status, published_date }`.
+
+#### Props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `post` | `Post` | Yes | Post data to toggle publish state for |
+| `onSuccess` | `() => void` | Yes | Callback invoked after the publish/unpublish action succeeds |
+| `className` | `string` | No | Additional CSS classes applied to the button |
+
+#### Behavior
+
+1. **Post is published**: Clicking the button opens a `ConfirmDialog` asking to confirm unpublishing. On confirm, sends `PUT /api/posts/{id}` with `{ status: "scheduled" }` (or `"draft"` if no scheduled date), clearing `published_date`.
+2. **Post is not published**: Clicking the button opens a `ConfirmDialog` asking to confirm publishing now. On confirm, sends `PUT /api/posts/{id}` with `{ status: "published", published_date: new Date().toISOString() }`.
+3. **Double-click protection**: A `useRef` flag prevents multiple concurrent requests.
+4. **On success**: Calls `onSuccess` so the parent can refresh data.
+
+#### Usage
+
+```tsx
+<QuickPublishButton
+  post={post}
+  onSuccess={() => refetchPosts()}
+  className="ml-2"
+/>
+```
+
+> **Caveat:** The double-confirmation pattern means two clicks are required to complete the action — one to open the dialog and one to confirm. This is intentional to prevent accidental publish/unpublish operations.
+
+---
+
 ## Project Components
 
 ### ProjectForm
@@ -407,6 +448,44 @@ A card component displaying a project summary with its tags, post count, and ext
 
 ---
 
+## Tag Components
+
+### EditTagDialog
+
+**File:** `src/components/tags/EditTagDialog.tsx`
+
+Dialog for editing a tag name. Uses `useAsyncAction` for double-click protection. Resets form on open. Sends `PUT /api/tags/{id}` with `{ name }`. If name unchanged, just closes.
+
+#### Props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `tag` | `{ _id: string, name: string }` | Yes | The tag to edit, with its ID and current name |
+| `onSuccess` | `(updatedTag: { _id: string, name: string }) => void` | Yes | Callback invoked with the updated tag after a successful edit |
+
+#### Behavior
+
+1. **On open**: The form input is reset to the tag's current name, ensuring stale values are cleared.
+2. **If name unchanged**: When the submitted name matches the original, the dialog simply closes without making an API request.
+3. **On submit**: Sends `PUT /api/tags/{id}` with `{ name }`.
+4. **Double-click protection**: `useAsyncAction` disables the submit button while the request is in-flight, preventing duplicate submissions.
+5. **On success**: Calls `onSuccess` with the updated tag object so the parent can update its state.
+
+#### Usage
+
+```tsx
+<EditTagDialog
+  tag={{ _id: "tag_123", name: "React" }}
+  onSuccess={(updatedTag) => {
+    setTags((prev) => prev.map((t) => t._id === updatedTag._id ? updatedTag : t));
+  }}
+/>
+```
+
+> **Caveat:** The component manages its own dialog open/close state internally. It renders a trigger element that opens the dialog when clicked.
+
+---
+
 ## Settings Components
 
 ### TwoFactorSetup
@@ -489,6 +568,42 @@ Alert dialog that regenerates 2FA backup codes after confirming the destructive 
 ```
 
 > **Caveat:** This is a destructive operation. The old backup codes are immediately invalidated on the server side. There is no undo.
+
+---
+
+## Dashboard Components
+
+### StatsCard
+
+**File:** `src/components/dashboard/StatsCard.tsx`
+
+Dashboard statistics card with an icon, title, value, and optional description. Used in the dashboard overview to display aggregate metrics.
+
+#### Props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `title` | `string` | Yes | Label for the statistic (e.g., "Total Posts") |
+| `value` | `string \| number` | Yes | The primary value to display |
+| `icon` | `ReactNode` | Yes | Icon element rendered alongside the title |
+| `description` | `string` | No | Secondary text providing context (e.g., "+12% from last month") |
+
+#### Features
+
+- **Icon integration**: Accepts any React node as an icon, allowing Lucide icons or custom SVGs.
+- **Responsive layout**: Stacks vertically on small screens and aligns horizontally on larger breakpoints.
+- **Optional description**: When provided, renders beneath the value in a muted style.
+
+#### Usage
+
+```tsx
+<StatsCard
+  title="Total Posts"
+  value={142}
+  icon={<FileText className="h-4 w-4" />}
+  description="+12% from last month"
+/>
+```
 
 ---
 
@@ -646,34 +761,77 @@ A full-featured pagination component with item count display, per-page selector,
 
 ---
 
-### StatsCard
+### TagsFilter
 
-**File:** `src/components/dashboard/StatsCard.tsx`
+**File:** `src/components/ui/TagsFilter.tsx`
 
-Dashboard statistics card with an icon, title, value, and optional description. Used in the dashboard overview to display aggregate metrics.
+Dropdown multi-select for filtering by tags. Shows selected count. Has search input. Toggle tag selection. "Clear all" button. Closes on outside click.
 
 #### Props
 
 | Prop | Type | Required | Description |
 |---|---|---|---|
-| `title` | `string` | Yes | Label for the statistic (e.g., "Total Posts") |
-| `value` | `string \| number` | Yes | The primary value to display |
-| `icon` | `ReactNode` | Yes | Icon element rendered alongside the title |
-| `description` | `string` | No | Secondary text providing context (e.g., "+12% from last month") |
+| `availableTags` | `TagOption[]` | Yes | All available tags to display in the dropdown. `TagOption = { _id: string; name: string }` |
+| `selectedTagIds` | `string[]` | Yes | Array of currently selected tag IDs |
+| `onSelectionChange` | `(tagIds: string[]) => void` | Yes | Callback invoked when the selection changes, receiving the full array of selected tag IDs |
 
 #### Features
 
-- **Icon integration**: Accepts any React node as an icon, allowing Lucide icons or custom SVGs.
-- **Responsive layout**: Stacks vertically on small screens and aligns horizontally on larger breakpoints.
-- **Optional description**: When provided, renders beneath the value in a muted style.
+- **Selected count badge**: Displays the number of currently selected tags (e.g., "Tags (3)").
+- **Search input**: Filters the tag list by name as the user types.
+- **Toggle selection**: Clicking a tag in the dropdown toggles its selection state.
+- **Clear all button**: Resets the selection to an empty array.
+- **Outside click**: Clicking outside the dropdown closes it.
 
 #### Usage
 
 ```tsx
-<StatsCard
-  title="Total Posts"
-  value={142}
-  icon={<FileText className="h-4 w-4" />}
-  description="+12% from last month"
+<TagsFilter
+  availableTags={allTags}
+  selectedTagIds={selectedTagIds}
+  onSelectionChange={setSelectedTagIds}
 />
 ```
+
+> **Caveat:** The component is a controlled component — the parent must manage the `selectedTagIds` state. It does not maintain internal selection state.
+
+---
+
+### SortControls
+
+**File:** `src/components/ui/SortControls.tsx`
+
+Reusable sort field selector + ASC/DESC toggle button. Uses `ArrowDownWideNarrow` / `ArrowUpNarrowWide` icons.
+
+#### Props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `sortBy` | `string` | Yes | Current sort field value |
+| `onSortByChange` | `(value: string) => void` | Yes | Callback when the sort field changes |
+| `sortOrder` | `"asc" \| "desc"` | Yes | Current sort order direction |
+| `onSortOrderToggle` | `() => void` | Yes | Callback to toggle between ascending and descending |
+| `options` | `SortOption[]` | Yes | Available sort options. `SortOption = { value: string; label: string }` |
+
+#### Features
+
+- **Sort field selector**: A dropdown populated from the `options` prop allowing the user to choose which field to sort by.
+- **ASC/DESC toggle**: A button that toggles between ascending and descending order. Displays `ArrowDownWideNarrow` icon for descending and `ArrowUpNarrowWide` icon for ascending.
+
+#### Usage
+
+```tsx
+<SortControls
+  sortBy={sortBy}
+  onSortByChange={setSortBy}
+  sortOrder={sortOrder}
+  onSortOrderToggle={toggleSortOrder}
+  options={[
+    { value: "createdAt", label: "Created Date" },
+    { value: "name", label: "Name" },
+    { value: "status", label: "Status" },
+  ]}
+/>
+```
+
+> **Caveat:** The `options` array must contain at least one entry. An empty array will result in a non-functional dropdown.

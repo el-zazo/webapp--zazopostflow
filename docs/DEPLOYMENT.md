@@ -13,6 +13,7 @@ Production deployment guide for ZazoPostFlow. This document covers the build pro
 - [Email Service Setup (Brevo)](#email-service-setup-brevo)
 - [Secure Cookie Configuration](#secure-cookie-configuration)
 - [Rate Limiting Caveats](#rate-limiting-caveats)
+- [Route Protection Notes](#route-protection-notes)
 - [Docker Deployment](#docker-deployment-recommended)
 - [Health Checks](#health-checks)
 
@@ -167,6 +168,32 @@ For deployments with multiple server instances (e.g. Kubernetes, load-balanced V
 
 - [`rate-limiter-flexible`](https://github.com/wyattjoh/rate-limiter-flexible) — supports Redis, MongoDB, and other backends
 - [`express-rate-limit`](https://github.com/express-rate-limit/express-rate-limit) with `rate-limit-redis` store
+
+---
+
+## Route Protection Notes
+
+The middleware matcher in `middleware.ts` explicitly lists protected route patterns (e.g. `/dashboard/:path*`, `/settings/:path*`). However, some pages are protected indirectly through Next.js route groups rather than the middleware matcher.
+
+### `/shorts` route
+
+The `/shorts` page lives under `src/app/(dashboard)/shorts/page.tsx`. Because it is part of the `(dashboard)` route group, it inherits the authentication check from the dashboard layout — **not** from the middleware matcher. This means:
+
+- The `/shorts` page is still protected and requires authentication to access.
+- The middleware matcher does **not** include `/shorts/:path*` explicitly.
+
+If custom middleware-level protection is needed for the `/shorts` route (e.g. for redirect logic, rate limiting, or additional checks before the layout renders), add `/shorts/:path*` to the protected routes array in `middleware.ts`:
+
+```typescript
+// middleware.ts
+export const config = {
+  matcher: [
+    '/dashboard/:path*',
+    '/settings/:path*',
+    '/shorts/:path*',  // add this line for explicit middleware protection
+  ],
+};
+```
 
 ---
 

@@ -36,6 +36,8 @@
   - [PUT /api/posts/[id]](#put-apipostsid)
   - [DELETE /api/posts/[id]](#delete-apipostsid)
   - [GET /api/posts/calendar](#get-apipostscalendar)
+  - [GET /api/posts/calendar/day](#get-apipostscalendarday)
+  - [GET /api/posts/shorts](#get-apipostsshorts)
 - [Projects Routes](#projects-routes)
   - [GET /api/projects](#get-apiprojects)
   - [POST /api/projects](#post-apiprojects)
@@ -51,6 +53,7 @@
   - [GET /api/dashboard](#get-apidashboard)
   - [GET /api/dashboard/stats](#get-apidashboardstats)
   - [GET /api/dashboard/recent-posts](#get-apidashboardrecent-posts)
+  - [GET /api/dashboard/top-tags](#get-apidashboardtop-tags)
 - [User Route](#user-route)
   - [PUT /api/user](#put-apiuser)
 
@@ -503,12 +506,12 @@ Activates the account (`active: true`) and clears the verification token.
 }
 ```
 
-**400 — Invalid or expired token**
+**400 — Invalid or expired link**
 
 ```json
 {
   "success": false,
-  "error": "Invalid or expired verification token"
+  "error": "Invalid or expired verification link"
 }
 ```
 
@@ -602,16 +605,6 @@ Request account deletion. Sends a confirmation email with a 1-hour token.
 
 #### Responses
 
-**200 — 2FA code required (2FA enabled but no code provided)**
-
-```json
-{
-  "success": true,
-  "requires2FA": true,
-  "message": "2FA code required"
-}
-```
-
 **200 — Confirmation email sent**
 
 If credentials are valid, a deletion confirmation email is sent with a 1-hour expiring token.
@@ -619,14 +612,49 @@ If credentials are valid, a deletion confirmation email is sent with a 1-hour ex
 ```json
 {
   "success": true,
-  "message": "If your credentials are correct, a confirmation email has been sent.",
+  "message": "A confirmation email has been sent. Please check your inbox.",
   "email": "user@example.com"
 }
 ```
 
-**429 — Rate limit exceeded**
+**400 — 2FA code required (2FA enabled but no code provided)**
 
-**401 — Invalid credentials**
+```json
+{
+  "success": false,
+  "error": "2FA code is required",
+  "requires2FA": true
+}
+```
+
+**400 — Incorrect password**
+
+```json
+{
+  "success": false,
+  "error": "Incorrect password"
+}
+```
+
+**400 — Password is required**
+
+```json
+{
+  "success": false,
+  "error": "Password is required"
+}
+```
+
+**400 — Invalid 2FA code**
+
+```json
+{
+  "success": false,
+  "error": "Invalid 2FA code"
+}
+```
+
+**429 — Rate limit exceeded**
 
 ---
 
@@ -672,12 +700,12 @@ Validated with Zod.
 }
 ```
 
-**400 — Invalid or expired token**
+**400 — Invalid or expired deletion link**
 
 ```json
 {
   "success": false,
-  "error": "Invalid or expired token"
+  "error": "Invalid or expired deletion link"
 }
 ```
 
@@ -803,14 +831,14 @@ Backup codes are consumed on use and removed from the array. They are hashed wit
 
 #### Responses
 
-**200 — Login successful**
+**200 — 2FA verified successfully**
 
 Sets the `postflow_token` httpOnly cookie.
 
 ```json
 {
   "success": true,
-  "message": "Login successful",
+  "message": "2FA verified successfully",
   "data": {
     "user": {
       "_id": "string",
@@ -825,12 +853,12 @@ Sets the `postflow_token` httpOnly cookie.
 }
 ```
 
-**401 — Invalid code or backup code**
+**400 — Invalid authentication code**
 
 ```json
 {
   "success": false,
-  "error": "Invalid verification code"
+  "error": "Invalid authentication code"
 }
 ```
 
@@ -876,9 +904,23 @@ Clears `two_factor_secret` and `two_factor_backup_codes` on the user.
 }
 ```
 
-**400 — Invalid code**
+**400 — Incorrect password**
 
-**401 — Invalid password**
+```json
+{
+  "success": false,
+  "error": "Incorrect password"
+}
+```
+
+**400 — Invalid 2FA code**
+
+```json
+{
+  "success": false,
+  "error": "Invalid 2FA code"
+}
+```
 
 ---
 
@@ -978,9 +1020,16 @@ Retrieve existing backup codes. Requires password and a TOTP code (**backup code
 }
 ```
 
-**400 — Invalid TOTP code**
+**400 — Incorrect password**
 
-**401 — Invalid password**
+```json
+{
+  "success": false,
+  "error": "Incorrect password"
+}
+```
+
+**400 — Invalid TOTP code**
 
 ---
 
@@ -1025,7 +1074,7 @@ None required. The user must have 2FA already enabled.
 ```json
 {
   "success": false,
-  "error": "2FA is not enabled on your account"
+  "error": "2FA is not enabled"
 }
 ```
 
@@ -1341,7 +1390,7 @@ Delete a post.
 
 ### GET /api/posts/calendar
 
-Retrieve posts organized by day for a calendar view. Returns posts that have a `scheduled_date` or `published_date` within the specified month.
+Retrieve post counts organized by day for a calendar view. Returns the number of posts that have a `scheduled_date` or `published_date` within the specified month, grouped by day.
 
 | Property | Value |
 |---|---|
@@ -1363,34 +1412,8 @@ Retrieve posts organized by day for a calendar view. Returns posts that have a `
 {
   "success": true,
   "data": {
-    "1": [
-      {
-        "_id": "string",
-        "name": "Scheduled Post",
-        "status": "scheduled",
-        "type": "main",
-        "has_images": true,
-        "has_videos": false,
-        "scheduled_date": "2025-07-01T10:00:00.000Z",
-        "published_date": null,
-        "projectName": "My Project",
-        "projectId": "string"
-      }
-    ],
-    "15": [
-      {
-        "_id": "string",
-        "name": "Published Post",
-        "status": "published",
-        "type": "group",
-        "has_images": false,
-        "has_videos": true,
-        "scheduled_date": null,
-        "published_date": "2025-07-15T14:00:00.000Z",
-        "projectName": "Another Project",
-        "projectId": "string"
-      }
-    ]
+    "1": 3,
+    "15": 2
   },
   "meta": {
     "year": 2025,
@@ -1399,22 +1422,152 @@ Retrieve posts organized by day for a calendar view. Returns posts that have a `
 }
 ```
 
-The `data` object uses the day of the month (as a string) as the key. Days with no posts are omitted.
+The `data` object uses the day of the month (as a string) as the key, mapping to the number of posts on that day. Days with no posts are omitted.
 
-**CalendarPost shape:**
+**401 — Unauthorized**
+
+---
+
+### GET /api/posts/calendar/day
+
+Retrieve posts for a specific day in a calendar view. Returns post objects that have a `scheduled_date` or `published_date` within the specified day. Priority is given to `published_date` if it exists, otherwise `scheduled_date` is used.
+
+| Property | Value |
+|---|---|
+| **Auth** | Required |
+| **Rate Limit** | 30 requests / minute (`api:posts:calendar:day:get`) |
+
+#### Query Parameters
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `year` | `number` | Current year | Calendar year |
+| `month` | `number` | Current month | Month number (1–12) |
+| `day` | `number` | Current day | Day number (1–31) |
+
+#### Responses
+
+**200 — Success**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "string",
+      "name": "Scheduled Post",
+      "content": "string",
+      "status": "scheduled",
+      "type": "main",
+      "platform": "string",
+      "has_images": true,
+      "has_videos": false,
+      "scheduled_date": "2025-07-01T10:00:00.000Z",
+      "published_date": null,
+      "project_id": "string",
+      "projectName": "My Project",
+      "createdAt": "ISO 8601",
+      "updatedAt": "ISO 8601"
+    }
+  ],
+  "meta": {
+    "year": 2025,
+    "month": 7,
+    "day": 1
+  }
+}
+```
+
+**CalendarDayPost shape:**
 
 | Field | Type | Description |
 |---|---|---|
 | `_id` | `string` | Post ID |
 | `name` | `string` | Post name |
+| `content` | `string` | Post content |
 | `status` | `string` | Post status |
 | `type` | `string` | Post type |
+| `platform` | `string` | Post platform |
 | `has_images` | `boolean` | Whether post has images |
 | `has_videos` | `boolean` | Whether post has videos |
 | `scheduled_date` | `string \| null` | Scheduled date |
 | `published_date` | `string \| null` | Published date |
+| `project_id` | `string` | ID of the parent project |
 | `projectName` | `string` | Name of the parent project |
-| `projectId` | `string` | ID of the parent project |
+| `createdAt` | `string` | Creation timestamp |
+| `updatedAt` | `string` | Last update timestamp |
+
+**400 — Invalid parameters**
+
+```json
+{
+  "success": false,
+  "error": "Invalid parameters"
+}
+```
+
+**401 — Unauthorized**
+
+**500 — Server error**
+
+---
+
+### GET /api/posts/shorts
+
+Retrieve posts in a paginated vertical-scroll feed format. Populates project with tags, github_link, and demo_link. Sorted by `createdAt` descending.
+
+| Property | Value |
+|---|---|
+| **Auth** | Required |
+| **Rate Limit** | 30 requests / minute (`api:posts:shorts`) |
+
+#### Query Parameters
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `page` | `number` | `1` | Page number |
+| `limit` | `number` | `1` | Results per page |
+
+#### Responses
+
+**200 — Success**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "string",
+      "name": "string",
+      "content": "string",
+      "status": "string",
+      "type": "string",
+      "platform": "string",
+      "has_images": false,
+      "has_videos": false,
+      "scheduled_date": "ISO 8601",
+      "published_date": "ISO 8601",
+      "project": {
+        "_id": "string",
+        "name": "My Project",
+        "tags": [
+          { "_id": "string", "name": "React" }
+        ],
+        "github_link": "https://github.com/...",
+        "demo_link": "https://demo.example.com"
+      },
+      "createdAt": "ISO 8601",
+      "updatedAt": "ISO 8601"
+    }
+  ],
+  "pagination": {
+    "totalItems": 42,
+    "currentPage": 1,
+    "hasNextPage": true,
+    "nextPage": 2
+  }
+}
+```
 
 **401 — Unauthorized**
 
@@ -1523,7 +1676,7 @@ Validated with Zod.
 | `github_link` | `string` | Valid URL or empty string | — | No |
 | `demo_link` | `string` | Valid URL or empty string | — | No |
 | `tags` | `string[]` | Array of tag ObjectIds | — | No |
-| `status` | `string` | `"active"` \| `"archived"` | — | No |
+| `status` | `string` | `"active"` \| `"archived"` \| `"completed"` | — | No |
 
 Tags are populated in the response.
 
@@ -2025,6 +2178,51 @@ On internal failure, returns an empty array:
 ```json
 []
 ```
+
+**401 — Unauthorized**
+
+---
+
+### GET /api/dashboard/top-tags
+
+Retrieve the top 5 most-used tags across the authenticated user's projects. Uses an aggregation pipeline: match user projects → unwind tags → group by tag → count → lookup tag name → sort descending → limit 5.
+
+| Property | Value |
+|---|---|
+| **Auth** | Required |
+| **Rate Limit** | 30 requests / minute (`api:dashboard:top-tags`) |
+
+#### Query Parameters
+
+None.
+
+#### Responses
+
+**200 — Success**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "string",
+      "name": "React",
+      "projectsCount": 5
+    },
+    {
+      "_id": "string",
+      "name": "TypeScript",
+      "projectsCount": 3
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `_id` | `string` | Tag ID |
+| `name` | `string` | Tag name |
+| `projectsCount` | `number` | Number of projects using this tag |
 
 **401 — Unauthorized**
 
