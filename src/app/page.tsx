@@ -17,7 +17,14 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is authenticated and redirect accordingly
+    // No token cookie → first-time visitor, go straight to login
+    const hasToken = document.cookie.includes("postflow_token=");
+    if (!hasToken) {
+      router.push("/login");
+      return;
+    }
+
+    // Has a token cookie → verify if session is still valid
     const checkAuth = async () => {
       try {
         const res = await apiFetch("/api/auth/me");
@@ -29,10 +36,9 @@ export default function HomePage() {
           }
         }
       } catch {
-        // Not authenticated — apiFetch already handles 401 redirect
+        // apiFetch already handles 401 (clears cookie + redirects to /login?reason=session_expired)
         return;
       }
-      // Only push to /login if apiFetch didn't already redirect (e.g. non-401 error)
       router.push("/login");
     };
     checkAuth();
