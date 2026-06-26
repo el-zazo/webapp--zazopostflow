@@ -178,11 +178,12 @@ export async function PUT(
     // Maintenant: On ne modifie `published_date` QUE si le statut est
     // explicitement fourni dans le payload.
     if (validation.data.status === "published") {
-      // Si on passe explicitement à "published": utiliser la date fournie ou aujourd'hui
+      // Si on passe explicitement à "published": utiliser la date fournie ou aujourd'hui (UTC midnight)
       if (validation.data.published_date) {
         updateData.published_date = new Date(validation.data.published_date);
       } else if (!existingPost.published_date) {
-        updateData.published_date = new Date();
+        const now = new Date();
+        updateData.published_date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
       }
       // Si le post a déjà une published_date, on la conserve (pas de changement)
     } else if (validation.data.status !== undefined) {

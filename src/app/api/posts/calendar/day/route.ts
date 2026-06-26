@@ -51,9 +51,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Calculate day start/end
-    const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0);
-    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+    // Calculate day start/end (UTC to match how dates are stored)
+    const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
     // Get user's project IDs for ownership verification
     const userProjects = await Project.find({

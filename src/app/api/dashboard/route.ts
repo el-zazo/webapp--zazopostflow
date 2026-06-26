@@ -44,15 +44,12 @@ export async function GET(request: NextRequest) {
       projectIds = [];
     }
 
-    // Calculate date ranges
+    // Calculate date ranges (UTC to match how dates are stored)
     const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 7);
+    const startOfWeek = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay(), 0, 0, 0, 0));
+    const endOfWeek = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 7, 0, 0, 0, 0));
 
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
 
     // All queries in parallel with individual catch - never throw
     const [totalProjects, totalPosts, scheduledThisWeek, publishedThisMonth, totalDraftsCount] =
@@ -110,6 +107,7 @@ export async function GET(request: NextRequest) {
       return {
         _id: (p._id as { toString(): string }).toString() || "",
         name: (p.name as string) || "Untitled Post",
+        content: (p.content as string) || "",
         status: (p.status as string) || "draft",
         createdAt: (p.createdAt as Date)?.toISOString() || new Date().toISOString(),
         projectName,
@@ -126,9 +124,8 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Upcoming posts: status="scheduled" AND scheduled_date >= today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Upcoming posts: status="scheduled" AND scheduled_date >= today (UTC)
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
 
     let upcomingPosts: Record<string, unknown>[] = [];
     try {
@@ -165,6 +162,7 @@ export async function GET(request: NextRequest) {
       return {
         _id: (p._id as { toString(): string }).toString() || "",
         name: (p.name as string) || "Untitled Post",
+        content: (p.content as string) || "",
         status: (p.status as string) || "scheduled",
         scheduled_date: p.scheduled_date
           ? new Date(p.scheduled_date as Date).toISOString()
@@ -215,6 +213,7 @@ export async function GET(request: NextRequest) {
       return {
         _id: (p._id as { toString(): string }).toString() || "",
         name: (p.name as string) || "Untitled Post",
+        content: (p.content as string) || "",
         status: (p.status as string) || "scheduled",
         scheduled_date: p.scheduled_date
           ? new Date(p.scheduled_date as Date).toISOString()
@@ -265,6 +264,7 @@ export async function GET(request: NextRequest) {
       return {
         _id: (p._id as { toString(): string }).toString() || "",
         name: (p.name as string) || "Untitled Post",
+        content: (p.content as string) || "",
         status: (p.status as string) || "draft",
         updatedAt: p.updatedAt
           ? new Date(p.updatedAt as Date).toISOString()

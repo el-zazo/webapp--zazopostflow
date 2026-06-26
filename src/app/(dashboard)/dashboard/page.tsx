@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { FolderKanban, FileText, CalendarCheck, Send, Plus, ImageIcon, Video, Clock, AlertTriangle, PartyPopper, PenTool, Pencil, Trash2 } from "lucide-react";
+import { FolderKanban, FileText, CalendarCheck, Send, Plus, ImageIcon, Video, Clock, AlertTriangle, PartyPopper, PenTool, Pencil, Trash2, Calendar } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { DashboardStats, RecentPost, Project, Post } from "@/types";
 import { PostForm } from "@/components/posts/PostForm";
 import { QuickPublishButton } from "@/components/posts/QuickPublishButton";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { CopyButton } from "@/components/shared/CopyButton";
 import { useToast } from "@/hooks/use-toast";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { apiFetch } from "@/lib/api-client";
@@ -26,6 +27,7 @@ const DEFAULT_STATS: DashboardStats = {
 interface UpcomingPost {
   _id: string;
   name: string;
+  content: string;
   status: string;
   scheduled_date: string | null;
   published_date: string | null;
@@ -39,6 +41,7 @@ interface UpcomingPost {
 interface MissedPost {
   _id: string;
   name: string;
+  content: string;
   status: string;
   scheduled_date: string | null;
   published_date: string | null;
@@ -52,6 +55,7 @@ interface MissedPost {
 interface DraftPost {
   _id: string;
   name: string;
+  content: string;
   status: string;
   updatedAt: string;
   scheduled_date: string | null;
@@ -127,12 +131,12 @@ function getDaysOverdue(scheduledDate: string): number {
 }
 
 // Helper to convert dashboard post variants to a Post object for QuickPublishButton
-function toPost(p: { _id: string; name: string; status: string; scheduled_date?: string | null; published_date?: string | null; projectId: string; projectName: string; type?: string; has_images?: boolean; has_videos?: boolean; createdAt?: string; updatedAt?: string }): Post {
+function toPost(p: { _id: string; name: string; content?: string; status: string; scheduled_date?: string | null; published_date?: string | null; projectId: string; projectName: string; type?: string; has_images?: boolean; has_videos?: boolean; createdAt?: string; updatedAt?: string }): Post {
   return {
     _id: p._id,
     project_id: p.projectId,
     name: p.name,
-    content: "",
+    content: p.content || "",
     type: (p.type as "main" | "group") || "main",
     platform: "LinkedIn",
     scheduled_date: p.scheduled_date ?? null,
@@ -483,6 +487,22 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
+                    {(post.scheduled_date || post.published_date) && (
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        {post.scheduled_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span>{new Date(post.scheduled_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                        {post.published_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-green-400 shrink-0" />
+                            <span>{new Date(post.published_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {post.scheduled_date && (
@@ -493,6 +513,7 @@ export default function DashboardPage() {
                         {getCountdown(post.scheduled_date)}
                       </Badge>
                     )}
+                    <CopyButton text={post.content} className="h-7 w-7" />
                     <QuickPublishButton
                       post={toPost(post)}
                       onSuccess={fetchDashboard}
@@ -603,6 +624,22 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
+                    {(post.scheduled_date || post.published_date) && (
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        {post.scheduled_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span>{new Date(post.scheduled_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                        {post.published_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-green-400 shrink-0" />
+                            <span>{new Date(post.published_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge
@@ -613,6 +650,7 @@ export default function DashboardPage() {
                         ? `${getDaysOverdue(post.scheduled_date)} day${getDaysOverdue(post.scheduled_date) !== 1 ? "s" : ""} overdue`
                         : "Overdue"}
                     </Badge>
+                    <CopyButton text={post.content} className="h-7 w-7" />
                     <QuickPublishButton
                       post={toPost(post)}
                       onSuccess={fetchDashboard}
@@ -720,8 +758,25 @@ export default function DashboardPage() {
                           </div>
                         )}
                       </div>
+                      {(post.scheduled_date || post.published_date) && (
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          {post.scheduled_date && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+                              <span>{new Date(post.scheduled_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                            </div>
+                          )}
+                          {post.published_date && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-green-400 shrink-0" />
+                              <span>{new Date(post.published_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <CopyButton text={post.content} className="h-7 w-7" />
                       <QuickPublishButton
                         post={toPost(post)}
                         onSuccess={fetchDashboard}
@@ -884,6 +939,22 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
+                    {(post.scheduled_date || post.published_date) && (
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        {post.scheduled_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span>{new Date(post.scheduled_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                        {post.published_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-green-400 shrink-0" />
+                            <span>{new Date(post.published_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span
@@ -899,6 +970,7 @@ export default function DashboardPage() {
                     >
                       {post.status}
                     </span>
+                    <CopyButton text={post.content || ""} className="h-7 w-7" />
                     <QuickPublishButton
                       post={toPost({ ...post, projectId: post.projectId, projectName: post.projectName })}
                       onSuccess={fetchDashboard}

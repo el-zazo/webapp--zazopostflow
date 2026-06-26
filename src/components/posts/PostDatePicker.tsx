@@ -146,8 +146,8 @@ export function PostDatePicker({
 
   const handleDayClick = (day: number) => {
     if (activeDay === day) {
-      // 2ème clic → SÉLECTIONNER la date
-      const dateStr = `${viewYear}-${String(viewMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00`;
+      // 2ème clic → SÉLECTIONNER la date (UTC midnight to avoid timezone offset issues)
+      const dateStr = `${viewYear}-${String(viewMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00.000Z`;
       onChange(dateStr);
       setIsOpen(false);
       setActiveDay(null);

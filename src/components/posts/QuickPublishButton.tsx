@@ -42,7 +42,9 @@ export function QuickPublishButton({ post, onSuccess, className }: QuickPublishB
       };
 
       if (newStatus === "published") {
-        payload.published_date = new Date().toISOString();
+        // Store as UTC midnight of the user's local day to avoid timezone offset issues
+        const now = new Date();
+        payload.published_date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)).toISOString();
       } else {
         payload.published_date = null;
       }

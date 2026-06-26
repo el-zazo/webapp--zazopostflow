@@ -59,6 +59,7 @@ export interface DashboardStats {
 export interface RecentPost {
   _id: string;
   name: string;
+  content?: string;
   status: "draft" | "scheduled" | "published";
   type?: string;
   has_images?: boolean;

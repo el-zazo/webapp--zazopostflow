@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ImageIcon, Video, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageIcon, Video, Pencil, Trash2, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -374,6 +374,24 @@ export default function CalendarPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Dates */}
+                    {(post.scheduled_date || post.published_date) && (
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {post.scheduled_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span>{new Date(post.scheduled_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                        {post.published_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-green-400 shrink-0" />
+                            <span>{new Date(post.published_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Line 4: Actions */}
                     <div className="flex items-center gap-1.5 pt-1 border-t border-border">
