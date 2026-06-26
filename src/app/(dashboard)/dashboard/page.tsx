@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { FolderKanban, FileText, CalendarCheck, Send, Plus, ImageIcon, Video, Clock, AlertTriangle, PartyPopper, PenTool } from "lucide-react";
+import { FolderKanban, FileText, CalendarCheck, Send, Plus, ImageIcon, Video, Clock, AlertTriangle, PartyPopper, PenTool, Pencil, Trash2 } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DashboardStats, RecentPost } from "@/types";
+import { DashboardStats, RecentPost, Project, Post } from "@/types";
+import { PostForm } from "@/components/posts/PostForm";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { useToast } from "@/hooks/use-toast";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { apiFetch } from "@/lib/api-client";
 
 const DEFAULT_STATS: DashboardStats = {
@@ -119,83 +123,26 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        setIsLoading(true);
+  // Edit/Delete state
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
 
-        const [dashRes, tagsRes] = await Promise.all([
-          apiFetch("/api/dashboard"),
-          apiFetch("/api/dashboard/top-tags"),
-        ]);
+  const { toast } = useToast();
+  const { isLoading: isUpdatingPost, execute: executeUpdatePost } = useAsyncAction();
+  const { isLoading: isDeletingPost, execute: executeDeletePost } = useAsyncAction();
 
-        if (!dashRes.ok) {
-          console.error("Dashboard API error:", dashRes.status);
-          setFetchError(true);
-          setStats(DEFAULT_STATS);
-          setRecentPosts([]);
-          setUpcomingPosts([]);
-          setMissedPosts([]);
-          setDraftPosts([]);
-          setTotalDraftsCount(0);
-        } else {
-          const data = (await dashRes.json()) as DashboardResponse;
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setIsLoading(true);
 
-          if (data && data.success && data.data) {
-            if (data.data.stats) {
-              setStats({
-                totalProjects: Number(data.data.stats.totalProjects) || 0,
-                totalPosts: Number(data.data.stats.totalPosts) || 0,
-                scheduledThisWeek: Number(data.data.stats.scheduledThisWeek) || 0,
-                publishedThisMonth: Number(data.data.stats.publishedThisMonth) || 0,
-              });
-            } else {
-              setStats(DEFAULT_STATS);
-            }
+      const [dashRes, tagsRes] = await Promise.all([
+        apiFetch("/api/dashboard"),
+        apiFetch("/api/dashboard/top-tags"),
+      ]);
 
-            if (Array.isArray(data.data.recentPosts)) {
-              setRecentPosts(data.data.recentPosts);
-            } else {
-              setRecentPosts([]);
-            }
-
-            if (Array.isArray(data.data.upcomingPosts)) {
-              setUpcomingPosts(data.data.upcomingPosts);
-            } else {
-              setUpcomingPosts([]);
-            }
-
-            if (Array.isArray(data.data.missedPosts)) {
-              setMissedPosts(data.data.missedPosts);
-            } else {
-              setMissedPosts([]);
-            }
-
-            if (Array.isArray(data.data.draftPosts)) {
-              setDraftPosts(data.data.draftPosts);
-            } else {
-              setDraftPosts([]);
-            }
-            setTotalDraftsCount(data.data.totalDraftsCount || 0);
-          } else {
-            setFetchError(true);
-            setStats(DEFAULT_STATS);
-            setRecentPosts([]);
-            setUpcomingPosts([]);
-            setMissedPosts([]);
-            setDraftPosts([]);
-            setTotalDraftsCount(0);
-          }
-        }
-
-        if (tagsRes.ok) {
-          const tagsData = (await tagsRes.json()) as { success: boolean; data: TopTag[] };
-          if (tagsData.success && Array.isArray(tagsData.data)) {
-            setTopTags(tagsData.data);
-          }
-        }
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
+      if (!dashRes.ok) {
+        console.error("Dashboard API error:", dashRes.status);
         setFetchError(true);
         setStats(DEFAULT_STATS);
         setRecentPosts([]);
@@ -203,13 +150,144 @@ export default function DashboardPage() {
         setMissedPosts([]);
         setDraftPosts([]);
         setTotalDraftsCount(0);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      } else {
+        const data = (await dashRes.json()) as DashboardResponse;
 
-    fetchDashboard();
+        if (data && data.success && data.data) {
+          if (data.data.stats) {
+            setStats({
+              totalProjects: Number(data.data.stats.totalProjects) || 0,
+              totalPosts: Number(data.data.stats.totalPosts) || 0,
+              scheduledThisWeek: Number(data.data.stats.scheduledThisWeek) || 0,
+              publishedThisMonth: Number(data.data.stats.publishedThisMonth) || 0,
+            });
+          } else {
+            setStats(DEFAULT_STATS);
+          }
+
+          if (Array.isArray(data.data.recentPosts)) {
+            setRecentPosts(data.data.recentPosts);
+          } else {
+            setRecentPosts([]);
+          }
+
+          if (Array.isArray(data.data.upcomingPosts)) {
+            setUpcomingPosts(data.data.upcomingPosts);
+          } else {
+            setUpcomingPosts([]);
+          }
+
+          if (Array.isArray(data.data.missedPosts)) {
+            setMissedPosts(data.data.missedPosts);
+          } else {
+            setMissedPosts([]);
+          }
+
+          if (Array.isArray(data.data.draftPosts)) {
+            setDraftPosts(data.data.draftPosts);
+          } else {
+            setDraftPosts([]);
+          }
+          setTotalDraftsCount(data.data.totalDraftsCount || 0);
+        } else {
+          setFetchError(true);
+          setStats(DEFAULT_STATS);
+          setRecentPosts([]);
+          setUpcomingPosts([]);
+          setMissedPosts([]);
+          setDraftPosts([]);
+          setTotalDraftsCount(0);
+        }
+      }
+
+      if (tagsRes.ok) {
+        const tagsData = (await tagsRes.json()) as { success: boolean; data: TopTag[] };
+        if (tagsData.success && Array.isArray(tagsData.data)) {
+          setTopTags(tagsData.data);
+        }
+      }
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+      setFetchError(true);
+      setStats(DEFAULT_STATS);
+      setRecentPosts([]);
+      setUpcomingPosts([]);
+      setMissedPosts([]);
+      setDraftPosts([]);
+      setTotalDraftsCount(0);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/projects?limit=100");
+      const data = await res.json();
+      if (data.success) {
+        setProjects(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+    fetchProjects();
+  }, [fetchDashboard, fetchProjects]);
+
+  const handleUpdatePost = async (data: Record<string, unknown>) => {
+    if (!editingPost) return;
+
+    await executeUpdatePost(async () => {
+      const res = await apiFetch(`/api/posts/${editingPost._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Post updated successfully!" });
+        setEditingPost(null);
+        setFormOpen(false);
+        fetchDashboard();
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDeletePost = async (id: string) => {
+    await executeDeletePost(async () => {
+      const res = await apiFetch(`/api/posts/${id}`, { method: "DELETE" });
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Post deleted successfully!" });
+        fetchDashboard();
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
+  };
+
+  const openEditPost = async (postId: string) => {
+    try {
+      const res = await apiFetch(`/api/posts/${postId}`);
+      const data = await res.json();
+      if (data.success) {
+        setEditingPost(data.data);
+        setFormOpen(true);
+      } else {
+        toast({ title: "Error", description: "Failed to load post details", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to load post details", variant: "destructive" });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -345,14 +423,41 @@ export default function DashboardPage() {
                       )}
                     </p>
                   </div>
-                  {post.scheduled_date && (
-                    <Badge
-                      variant="outline"
-                      className="bg-blue-500/10 text-blue-500 border-blue-500/20 shrink-0 text-xs"
+                  <div className="flex items-center gap-2 shrink-0">
+                    {post.scheduled_date && (
+                      <Badge
+                        variant="outline"
+                        className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs"
+                      >
+                        {getCountdown(post.scheduled_date)}
+                      </Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                      onClick={() => openEditPost(post._id)}
+                      title="Edit post"
                     >
-                      {getCountdown(post.scheduled_date)}
-                    </Badge>
-                  )}
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                          title="Delete post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      }
+                      title="Delete Post"
+                      description={`Are you sure you want to delete "${post.name || "Untitled Post"}"? This action cannot be undone.`}
+                      onConfirm={() => handleDeletePost(post._id)}
+                      confirmText="Delete"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -416,15 +521,30 @@ export default function DashboardPage() {
                         : "Overdue"}
                     </Badge>
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs border-border"
-                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                      onClick={() => openEditPost(post._id)}
+                      title="Edit post"
                     >
-                      <Link href={`/projects/${post.projectId}`}>
-                        View
-                      </Link>
+                      <Pencil className="w-3.5 h-3.5" />
                     </Button>
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                          title="Delete post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      }
+                      title="Delete Post"
+                      description={`Are you sure you want to delete "${post.name || "Untitled Post"}"? This action cannot be undone.`}
+                      onConfirm={() => handleDeletePost(post._id)}
+                      confirmText="Delete"
+                    />
                   </div>
                 </div>
               ))}
@@ -445,7 +565,7 @@ export default function DashboardPage() {
               <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
               <p className="text-foreground font-medium">No drafts found</p>
               <p className="text-muted-foreground text-sm">
-                All your post ideas are scheduled or published! 🚀
+                All your post ideas are scheduled or published!
               </p>
             </div>
           ) : (
@@ -476,16 +596,33 @@ export default function DashboardPage() {
                         })}
                       </p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs border-border"
-                      asChild
-                    >
-                      <Link href={`/projects/${post.projectId}`}>
-                        Edit
-                      </Link>
-                    </Button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => openEditPost(post._id)}
+                        title="Edit post"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            title="Delete post"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        }
+                        title="Delete Post"
+                        description={`Are you sure you want to delete "${post.name || "Untitled Post"}"? This action cannot be undone.`}
+                        onConfirm={() => handleDeletePost(post._id)}
+                        confirmText="Delete"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -618,25 +755,65 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
-                  <span
-                    className={`
-                      text-xs px-2.5 py-1 rounded-full font-medium shrink-0
-                      ${post.status === "published"
-                        ? "bg-green-500/10 text-green-500 border border-green-500/20"
-                        : post.status === "scheduled"
-                        ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                        : "bg-muted text-muted-foreground border border-border"
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`
+                        text-xs px-2.5 py-1 rounded-full font-medium
+                        ${post.status === "published"
+                          ? "bg-green-500/10 text-green-500 border border-green-500/20"
+                          : post.status === "scheduled"
+                          ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
+                          : "bg-muted text-muted-foreground border border-border"
+                        }
+                      `}
+                    >
+                      {post.status}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditPost(post._id)}
+                      title="Edit post"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          title="Delete post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       }
-                    `}
-                  >
-                    {post.status}
-                  </span>
+                      title="Delete Post"
+                      description={`Are you sure you want to delete "${post.name || "Untitled Post"}"? This action cannot be undone.`}
+                      onConfirm={() => handleDeletePost(post._id)}
+                      confirmText="Delete"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Post Form Dialog */}
+      <PostForm
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingPost(null);
+        }}
+        onSubmit={handleUpdatePost}
+        post={editingPost}
+        projects={projects}
+        defaultProjectId={editingPost?.project_id}
+      />
     </div>
   );
 }

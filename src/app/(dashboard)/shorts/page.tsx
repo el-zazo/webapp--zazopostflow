@@ -2,11 +2,17 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Film, Plus, Globe, Calendar, ImageIcon, Video, ExternalLink, Github, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
+import { Film, Plus, Globe, Calendar, ImageIcon, Video, ExternalLink, Github, ChevronUp, ChevronDown, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuickPublishButton } from "@/components/posts/QuickPublishButton";
+import { PostForm } from "@/components/posts/PostForm";
+import { ProjectForm } from "@/components/projects/ProjectForm";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { Post, Project } from "@/types";
+import { useToast } from "@/hooks/use-toast";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { apiFetch } from "@/lib/api-client";
 
 interface ShortsProject {
@@ -51,8 +57,35 @@ export default function ShortsPage() {
   const [hasNextPage, setHasNextPage] = useState(true);
   const [totalItems, setTotalItems] = useState(0);
 
+  // Edit/Delete state for posts
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [postFormOpen, setPostFormOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  // Edit/Delete state for projects
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projectFormOpen, setProjectFormOpen] = useState(false);
+
+  const { toast } = useToast();
+  const { isLoading: isUpdatingPost, execute: executeUpdatePost } = useAsyncAction();
+  const { isLoading: isDeletingPost, execute: executeDeletePost } = useAsyncAction();
+  const { isLoading: isUpdatingProject, execute: executeUpdateProject } = useAsyncAction();
+  const { isLoading: isDeletingProject, execute: executeDeleteProject } = useAsyncAction();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/projects?limit=100");
+      const data = await res.json();
+      if (data.success) {
+        setProjects(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+    }
+  }, []);
 
   // Charger le prochain post
   const fetchNextPost = useCallback(async () => {
@@ -81,6 +114,7 @@ export default function ShortsPage() {
   // Charger le tout premier post au montage
   useEffect(() => {
     fetchNextPost();
+    fetchProjects();
   }, []);
 
   // Détecter le défilement pour mettre à jour l'index et précharger
@@ -91,7 +125,6 @@ export default function ShortsPage() {
     const handleScroll = () => {
       const scrollTop = container.scrollTop;
       const viewportHeight = container.clientHeight;
-      // Arrondir pour trouver l'index de la slide au centre
       const newIndex = Math.round(scrollTop / viewportHeight);
       
       if (newIndex !== currentIndex && newIndex >= 0 && newIndex < posts.length) {
@@ -103,7 +136,7 @@ export default function ShortsPage() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [posts.length, currentIndex]);
 
-  // Déclencheur de préchargement : dès qu'on arrive sur le dernier post chargé, on précharge le suivant !
+  // Déclencheur de préchargement
   useEffect(() => {
     if (currentIndex === posts.length - 1 && hasNextPage) {
       fetchNextPost();
@@ -130,9 +163,222 @@ export default function ShortsPage() {
     if (currentIndex < posts.length - 1) {
       scrollToPost(currentIndex + 1);
     } else if (hasNextPage) {
-      // Si on clique sur suivant mais qu'on a pas encore fini de charger
       fetchNextPost();
     }
+  };
+
+  // --- Post Edit/Delete handlers ---
+  const openEditPost = (shortsPost: ShortsPost) => {
+    const post: Post = {
+      _id: shortsPost._id,
+      project_id: shortsPost.project_id,
+      name: shortsPost.name,
+      content: shortsPost.content,
+      type: shortsPost.type,
+      platform: shortsPost.platform,
+      status: shortsPost.status,
+      scheduled_date: shortsPost.scheduled_date,
+      published_date: shortsPost.published_date,
+      has_videos: shortsPost.has_videos,
+      has_images: shortsPost.has_images,
+      createdAt: shortsPost.createdAt,
+      updatedAt: shortsPost.updatedAt,
+      projectName: shortsPost.project.name,
+    };
+    setEditingPost(post);
+    setPostFormOpen(true);
+  };
+
+  const handleUpdatePost = async (data: Record<string, unknown>) => {
+    if (!editingPost) return;
+
+    await executeUpdatePost(async () => {
+      const res = await apiFetch(`/api/posts/${editingPost._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Post updated successfully!" });
+        setEditingPost(null);
+        setPostFormOpen(false);
+        // Update locally
+        setPosts((prev) =>
+          prev.map((p) => {
+            if (p._id === editingPost._id) {
+              return {
+                ...p,
+                name: (data.name as string) || p.name,
+                content: (data.content as string) || p.content,
+                type: (data.type as "main" | "group") || p.type,
+                platform: (data.platform as string) || p.platform,
+                status: (data.status as "draft" | "scheduled" | "published") || p.status,
+                scheduled_date: (data.scheduled_date as string | null) ?? p.scheduled_date,
+                published_date: (data.published_date as string | null) ?? p.published_date,
+                has_images: (data.has_images as boolean) ?? p.has_images,
+                has_videos: (data.has_videos as boolean) ?? p.has_videos,
+                project_id: (data.project_id as string) || p.project_id,
+              };
+            }
+            return p;
+          })
+        );
+        // If project changed, fetch full post to get new project info
+        if (data.project_id && data.project_id !== editingPost.project_id) {
+          try {
+            const freshRes = await apiFetch(`/api/posts/shorts?page=1&limit=${posts.length}`);
+            const freshData = await freshRes.json();
+            if (freshData.success) {
+              setPosts(freshData.data);
+            }
+          } catch {
+            // silent fail, local update is still valid
+          }
+        }
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDeletePost = async (id: string) => {
+    await executeDeletePost(async () => {
+      const res = await apiFetch(`/api/posts/${id}`, { method: "DELETE" });
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Post deleted successfully!" });
+        // Remove locally and navigate if needed
+        setPosts((prev) => {
+          const newPosts = prev.filter((p) => p._id !== id);
+          if (currentIndex >= newPosts.length && newPosts.length > 0) {
+            setTimeout(() => scrollToPost(newPosts.length - 1), 100);
+          }
+          return newPosts;
+        });
+        setTotalItems((prev) => Math.max(0, prev - 1));
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
+  };
+
+  // --- Project Edit/Delete handlers ---
+  const openEditProject = (shortsProject: ShortsProject) => {
+    const project: Project = {
+      _id: shortsProject._id,
+      user_id: "",
+      name: shortsProject.name,
+      description: "",
+      github_link: shortsProject.github_link || "",
+      demo_link: shortsProject.demo_link || "",
+      tags: shortsProject.tags || [],
+      status: "active",
+      createdAt: "",
+      updatedAt: "",
+    };
+    setEditingProject(project);
+    setProjectFormOpen(true);
+  };
+
+  const handleUpdateProject = async (data: Record<string, unknown> & { tags: string[] }) => {
+    if (!editingProject) return;
+
+    await executeUpdateProject(async () => {
+      const res = await apiFetch(`/api/projects/${editingProject._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Project updated successfully!" });
+        setEditingProject(null);
+        setProjectFormOpen(false);
+        // Update locally in all posts that reference this project
+        setPosts((prev) =>
+          prev.map((p) => {
+            if (p.project._id === editingProject._id) {
+              return {
+                ...p,
+                project: {
+                  ...p.project,
+                  name: (data.name as string) || p.project.name,
+                  github_link: (data.github_link as string) || p.project.github_link,
+                  demo_link: (data.demo_link as string) || p.project.demo_link,
+                  tags: data.tags
+                    ? (data.tags as string[]).map((tagId, i) => ({
+                        _id: tagId,
+                        name: `Tag ${i + 1}`,
+                      }))
+                    : p.project.tags,
+                },
+              };
+            }
+            return p;
+          })
+        );
+        // Fetch fresh data to get updated tags
+        try {
+          const freshRes = await apiFetch(`/api/projects/${editingProject._id}`);
+          const freshData = await freshRes.json();
+          if (freshData.success && freshData.data) {
+            const updatedProject = freshData.data;
+            setPosts((prev) =>
+              prev.map((p) => {
+                if (p.project._id === editingProject._id) {
+                  return {
+                    ...p,
+                    project: {
+                      ...p.project,
+                      name: updatedProject.name,
+                      github_link: updatedProject.github_link || "",
+                      demo_link: updatedProject.demo_link || "",
+                      tags: updatedProject.tags || p.project.tags,
+                    },
+                  };
+                }
+                return p;
+              })
+            );
+          }
+        } catch {
+          // silent fail, local update is still valid
+        }
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDeleteProject = async () => {
+    if (!editingProject) return;
+
+    await executeDeleteProject(async () => {
+      const res = await apiFetch(`/api/projects/${editingProject._id}`, { method: "DELETE" });
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Project deleted successfully!" });
+        setProjectFormOpen(false);
+        setEditingProject(null);
+        // Remove all posts that belong to this project
+        setPosts((prev) => {
+          const newPosts = prev.filter((p) => p.project._id !== editingProject._id);
+          if (currentIndex >= newPosts.length && newPosts.length > 0) {
+            setTimeout(() => scrollToPost(0), 100);
+          }
+          return newPosts;
+        });
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
   };
 
   // Premier chargement squelette
@@ -219,7 +465,7 @@ export default function ShortsPage() {
             className="h-full w-full snap-start flex flex-col overflow-hidden shrink-0"
             style={{ scrollSnapAlign: "start" }}
           >
-            {/* 1. Carte de l'en-tête du projet (Alignement exact en haut de la slide) */}
+            {/* 1. Carte de l'en-tête du projet */}
             <div className="bg-card border-b border-border p-4 shrink-0">
               <div className="max-w-2xl mx-auto">
                 <div className="flex items-center justify-between gap-3">
@@ -252,7 +498,7 @@ export default function ShortsPage() {
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {post.project.github_link && (
                       <a
                         href={post.project.github_link}
@@ -275,6 +521,33 @@ export default function ShortsPage() {
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     )}
+                    {/* Project Edit button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditProject(post.project)}
+                      title="Edit project"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    {/* Project Delete button */}
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          title="Delete project"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      }
+                      title="Delete Project"
+                      description={`Are you sure you want to delete "${post.project.name}"? All posts in this project will also be deleted. This action cannot be undone.`}
+                      onConfirm={handleDeleteProject}
+                      confirmText="Delete"
+                    />
                   </div>
                 </div>
               </div>
@@ -283,9 +556,40 @@ export default function ShortsPage() {
             {/* 2. Zone de contenu centrale scrollable */}
             <div className="flex-1 overflow-y-auto p-4 bg-background">
               <div className="max-w-2xl mx-auto space-y-4">
-                <h2 className="text-lg font-bold text-foreground truncate pt-1" title={post.name}>
-                  {post.name}
-                </h2>
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="text-lg font-bold text-foreground truncate pt-1" title={post.name}>
+                    {post.name}
+                  </h2>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Post Edit button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditPost(post)}
+                      title="Edit post"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    {/* Post Delete button */}
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          title="Delete post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      }
+                      title="Delete Post"
+                      description={`Are you sure you want to delete "${post.name}"? This action cannot be undone.`}
+                      onConfirm={() => handleDeletePost(post._id)}
+                      confirmText="Delete"
+                    />
+                  </div>
+                </div>
 
                 {/* Visualiseur de contenu */}
                 <div className="bg-muted/30 rounded-xl p-4 border border-border">
@@ -347,7 +651,6 @@ export default function ShortsPage() {
                       projectName: post.project.name,
                     }}
                     onSuccess={() => {
-                      // Mettre à jour localement l'état du post modifié
                       setPosts((prev) =>
                         prev.map((p) => {
                           if (p._id === post._id) {
@@ -402,6 +705,30 @@ export default function ShortsPage() {
       <div className="md:hidden fixed bottom-20 right-4 z-20 bg-card/85 backdrop-blur-xs rounded-full px-3 py-1 text-xs text-muted-foreground border border-border shadow-md">
         {currentIndex + 1}/{totalItems}
       </div>
+
+      {/* Post Form Dialog */}
+      <PostForm
+        open={postFormOpen}
+        onClose={() => {
+          setPostFormOpen(false);
+          setEditingPost(null);
+        }}
+        onSubmit={handleUpdatePost}
+        post={editingPost}
+        projects={projects}
+        defaultProjectId={editingPost?.project_id}
+      />
+
+      {/* Project Form Dialog */}
+      <ProjectForm
+        open={projectFormOpen}
+        onClose={() => {
+          setProjectFormOpen(false);
+          setEditingProject(null);
+        }}
+        onSubmit={handleUpdateProject}
+        project={editingProject}
+      />
     </div>
   );
 }

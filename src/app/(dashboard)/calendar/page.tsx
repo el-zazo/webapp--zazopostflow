@@ -2,14 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ImageIcon, Video } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageIcon, Video, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Post } from "@/types";
+import { Post, Project } from "@/types";
 import { CopyButton } from "@/components/shared/CopyButton";
 import { QuickPublishButton } from "@/components/posts/QuickPublishButton";
+import { PostForm } from "@/components/posts/PostForm";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { useToast } from "@/hooks/use-toast";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { apiFetch } from "@/lib/api-client";
 
 const statusColors: Record<string, string> = {
@@ -31,6 +35,15 @@ export default function CalendarPage() {
   const [loadingDayPosts, setLoadingDayPosts] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  // Edit/Delete state
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  const { toast } = useToast();
+  const { isLoading: isUpdatingPost, execute: executeUpdatePost } = useAsyncAction();
+  const { isLoading: isDeletingPost, execute: executeDeletePost } = useAsyncAction();
 
   const fetchCalendarCounts = useCallback(async (year: number, month: number) => {
     try {
@@ -63,12 +76,29 @@ export default function CalendarPage() {
     }
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/projects?limit=100");
+      const data = await res.json();
+      if (data.success) {
+        setProjects(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+    }
+  }, []);
+
   // Fetch counts when month changes
   useEffect(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
     fetchCalendarCounts(year, month);
   }, [currentDate, fetchCalendarCounts]);
+
+  // Fetch projects on mount for PostForm
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -79,6 +109,13 @@ export default function CalendarPage() {
   const daysInMonth = lastDay.getDate();
 
   const monthName = currentDate.toLocaleString("default", { month: "long" });
+
+  const refreshCurrentDay = useCallback(() => {
+    if (selectedDay) {
+      fetchDayPosts(year, month + 1, selectedDay);
+      fetchCalendarCounts(year, month + 1);
+    }
+  }, [selectedDay, year, month, fetchDayPosts, fetchCalendarCounts]);
 
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -101,6 +138,43 @@ export default function CalendarPage() {
   const handleDayClick = (day: number) => {
     setSelectedDay(day);
     fetchDayPosts(year, month + 1, day);
+  };
+
+  const handleUpdatePost = async (data: Record<string, unknown>) => {
+    if (!editingPost) return;
+
+    await executeUpdatePost(async () => {
+      const res = await apiFetch(`/api/posts/${editingPost._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Post updated successfully!" });
+        setEditingPost(null);
+        setFormOpen(false);
+        refreshCurrentDay();
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDeletePost = async (id: string) => {
+    await executeDeletePost(async () => {
+      const res = await apiFetch(`/api/posts/${id}`, { method: "DELETE" });
+      const result = await res.json();
+
+      if (result.success) {
+        toast({ title: "Post deleted successfully!" });
+        refreshCurrentDay();
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    });
   };
 
   const days: React.ReactNode[] = [];
@@ -288,16 +362,6 @@ export default function CalendarPage() {
 
                       {/* Right: Media icons + Quick publish */}
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <QuickPublishButton
-                          post={post}
-                          onSuccess={() => {
-                            // Refresh the day posts and calendar counts
-                            if (selectedDay) {
-                              fetchDayPosts(year, month + 1, selectedDay);
-                              fetchCalendarCounts(year, month + 1);
-                            }
-                          }}
-                        />
                         {post.has_images && (
                           <div className="flex items-center gap-1 text-xs text-blue-400">
                             <ImageIcon className="w-3.5 h-3.5" />
@@ -310,6 +374,44 @@ export default function CalendarPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Line 4: Actions */}
+                    <div className="flex items-center gap-1.5 pt-1 border-t border-border">
+                      <QuickPublishButton
+                        post={post}
+                        onSuccess={() => {
+                          refreshCurrentDay();
+                        }}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                        onClick={() => {
+                          setEditingPost(post);
+                          setFormOpen(true);
+                        }}
+                        title="Edit post"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                            title="Delete post"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        }
+                        title="Delete Post"
+                        description={`Are you sure you want to delete "${post.name}"? This action cannot be undone.`}
+                        onConfirm={() => handleDeletePost(post._id)}
+                        confirmText="Delete"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -317,6 +419,19 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Post Form Dialog */}
+      <PostForm
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingPost(null);
+        }}
+        onSubmit={handleUpdatePost}
+        post={editingPost}
+        projects={projects}
+        defaultProjectId={editingPost?.project_id}
+      />
     </div>
   );
 }
