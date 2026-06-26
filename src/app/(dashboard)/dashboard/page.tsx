@@ -29,6 +29,9 @@ interface UpcomingPost {
   scheduled_date: string | null;
   projectName: string;
   projectId: string;
+  type?: string;
+  has_images?: boolean;
+  has_videos?: boolean;
 }
 
 interface MissedPost {
@@ -38,6 +41,9 @@ interface MissedPost {
   scheduled_date: string | null;
   projectName: string;
   projectId: string;
+  type?: string;
+  has_images?: boolean;
+  has_videos?: boolean;
 }
 
 interface DraftPost {
@@ -47,6 +53,9 @@ interface DraftPost {
   updatedAt: string;
   projectName: string;
   projectId: string;
+  type?: string;
+  has_images?: boolean;
+  has_videos?: boolean;
 }
 
 interface TopTag {
@@ -422,6 +431,33 @@ export default function DashboardPage() {
                         </>
                       )}
                     </p>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {post.type && (
+                        <span
+                          className={`
+                            text-xs px-1.5 py-0.5 rounded font-medium
+                            ${post.type === "main"
+                              ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                              : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                            }
+                          `}
+                        >
+                          {post.type === "main" ? "Main" : "Group"}
+                        </span>
+                      )}
+                      {post.has_images && (
+                        <div className="flex items-center gap-1 text-xs text-blue-400">
+                          <ImageIcon className="w-3 h-3 shrink-0" />
+                          <span className="hidden sm:inline">Images</span>
+                        </div>
+                      )}
+                      {post.has_videos && (
+                        <div className="flex items-center gap-1 text-xs text-purple-400">
+                          <Video className="w-3 h-3 shrink-0" />
+                          <span className="hidden sm:inline">Videos</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {post.scheduled_date && (
@@ -510,6 +546,33 @@ export default function DashboardPage() {
                         </>
                       )}
                     </p>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {post.type && (
+                        <span
+                          className={`
+                            text-xs px-1.5 py-0.5 rounded font-medium
+                            ${post.type === "main"
+                              ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                              : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                            }
+                          `}
+                        >
+                          {post.type === "main" ? "Main" : "Group"}
+                        </span>
+                      )}
+                      {post.has_images && (
+                        <div className="flex items-center gap-1 text-xs text-blue-400">
+                          <ImageIcon className="w-3 h-3 shrink-0" />
+                          <span className="hidden sm:inline">Images</span>
+                        </div>
+                      )}
+                      {post.has_videos && (
+                        <div className="flex items-center gap-1 text-xs text-purple-400">
+                          <Video className="w-3 h-3 shrink-0" />
+                          <span className="hidden sm:inline">Videos</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge
@@ -595,6 +658,33 @@ export default function DashboardPage() {
                           year: "numeric",
                         })}
                       </p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {post.type && (
+                          <span
+                            className={`
+                              text-xs px-1.5 py-0.5 rounded font-medium
+                              ${post.type === "main"
+                                ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                                : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                              }
+                            `}
+                          >
+                            {post.type === "main" ? "Main" : "Group"}
+                          </span>
+                        )}
+                        {post.has_images && (
+                          <div className="flex items-center gap-1 text-xs text-blue-400">
+                            <ImageIcon className="w-3 h-3 shrink-0" />
+                            <span className="hidden sm:inline">Images</span>
+                          </div>
+                        )}
+                        {post.has_videos && (
+                          <div className="flex items-center gap-1 text-xs text-purple-400">
+                            <Video className="w-3 h-3 shrink-0" />
+                            <span className="hidden sm:inline">Videos</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Button

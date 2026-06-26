@@ -165,6 +165,9 @@ export async function GET(request: NextRequest) {
           : null,
         projectName,
         projectId,
+        type: (p.type as string) || "main",
+        has_images: Boolean(p.has_images),
+        has_videos: Boolean(p.has_videos),
       };
     });
 
@@ -209,6 +212,9 @@ export async function GET(request: NextRequest) {
           : null,
         projectName,
         projectId,
+        type: (p.type as string) || "main",
+        has_images: Boolean(p.has_images),
+        has_videos: Boolean(p.has_videos),
       };
     });
 
@@ -253,6 +259,9 @@ export async function GET(request: NextRequest) {
           : new Date().toISOString(),
         projectName,
         projectId,
+        type: (p.type as string) || "main",
+        has_images: Boolean(p.has_images),
+        has_videos: Boolean(p.has_videos),
       };
     });
 
