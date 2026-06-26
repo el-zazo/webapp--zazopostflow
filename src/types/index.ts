@@ -66,6 +66,8 @@ export interface RecentPost {
   createdAt: string;
   projectName: string;
   projectId: string;
+  scheduled_date?: string | null;
+  published_date?: string | null;
 }
 
 export interface ApiResponse<T = unknown> {

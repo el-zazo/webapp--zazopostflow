@@ -117,6 +117,12 @@ export async function GET(request: NextRequest) {
         type: (p.type as string) || "main",
         has_images: Boolean(p.has_images),
         has_videos: Boolean(p.has_videos),
+        scheduled_date: p.scheduled_date
+          ? new Date(p.scheduled_date as Date).toISOString()
+          : null,
+        published_date: p.published_date
+          ? new Date(p.published_date as Date).toISOString()
+          : null,
       };
     });
 
@@ -168,6 +174,9 @@ export async function GET(request: NextRequest) {
         type: (p.type as string) || "main",
         has_images: Boolean(p.has_images),
         has_videos: Boolean(p.has_videos),
+        published_date: p.published_date
+          ? new Date(p.published_date as Date).toISOString()
+          : null,
       };
     });
 
@@ -215,6 +224,9 @@ export async function GET(request: NextRequest) {
         type: (p.type as string) || "main",
         has_images: Boolean(p.has_images),
         has_videos: Boolean(p.has_videos),
+        published_date: p.published_date
+          ? new Date(p.published_date as Date).toISOString()
+          : null,
       };
     });
 
@@ -262,6 +274,12 @@ export async function GET(request: NextRequest) {
         type: (p.type as string) || "main",
         has_images: Boolean(p.has_images),
         has_videos: Boolean(p.has_videos),
+        scheduled_date: p.scheduled_date
+          ? new Date(p.scheduled_date as Date).toISOString()
+          : null,
+        published_date: p.published_date
+          ? new Date(p.published_date as Date).toISOString()
+          : null,
       };
     });
 

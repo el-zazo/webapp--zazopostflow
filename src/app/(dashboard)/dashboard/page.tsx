@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, RecentPost, Project, Post } from "@/types";
 import { PostForm } from "@/components/posts/PostForm";
+import { QuickPublishButton } from "@/components/posts/QuickPublishButton";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
@@ -27,6 +28,7 @@ interface UpcomingPost {
   name: string;
   status: string;
   scheduled_date: string | null;
+  published_date: string | null;
   projectName: string;
   projectId: string;
   type?: string;
@@ -39,6 +41,7 @@ interface MissedPost {
   name: string;
   status: string;
   scheduled_date: string | null;
+  published_date: string | null;
   projectName: string;
   projectId: string;
   type?: string;
@@ -51,6 +54,8 @@ interface DraftPost {
   name: string;
   status: string;
   updatedAt: string;
+  scheduled_date: string | null;
+  published_date: string | null;
   projectName: string;
   projectId: string;
   type?: string;
@@ -119,6 +124,26 @@ function getDaysOverdue(scheduledDate: string): number {
   scheduled.setHours(0, 0, 0, 0);
   const diffMs = now.getTime() - scheduled.getTime();
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+// Helper to convert dashboard post variants to a Post object for QuickPublishButton
+function toPost(p: { _id: string; name: string; status: string; scheduled_date?: string | null; published_date?: string | null; projectId: string; projectName: string; type?: string; has_images?: boolean; has_videos?: boolean; createdAt?: string; updatedAt?: string }): Post {
+  return {
+    _id: p._id,
+    project_id: p.projectId,
+    name: p.name,
+    content: "",
+    type: (p.type as "main" | "group") || "main",
+    platform: "LinkedIn",
+    scheduled_date: p.scheduled_date ?? null,
+    published_date: p.published_date ?? null,
+    status: p.status as "draft" | "scheduled" | "published",
+    has_videos: p.has_videos || false,
+    has_images: p.has_images || false,
+    createdAt: p.createdAt || new Date().toISOString(),
+    updatedAt: p.updatedAt || new Date().toISOString(),
+    projectName: p.projectName,
+  };
 }
 
 export default function DashboardPage() {
@@ -468,6 +493,11 @@ export default function DashboardPage() {
                         {getCountdown(post.scheduled_date)}
                       </Badge>
                     )}
+                    <QuickPublishButton
+                      post={toPost(post)}
+                      onSuccess={fetchDashboard}
+                      className="h-7 w-7"
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
@@ -583,6 +613,11 @@ export default function DashboardPage() {
                         ? `${getDaysOverdue(post.scheduled_date)} day${getDaysOverdue(post.scheduled_date) !== 1 ? "s" : ""} overdue`
                         : "Overdue"}
                     </Badge>
+                    <QuickPublishButton
+                      post={toPost(post)}
+                      onSuccess={fetchDashboard}
+                      className="h-7 w-7"
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
@@ -687,6 +722,11 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <QuickPublishButton
+                        post={toPost(post)}
+                        onSuccess={fetchDashboard}
+                        className="h-7 w-7"
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
@@ -859,6 +899,11 @@ export default function DashboardPage() {
                     >
                       {post.status}
                     </span>
+                    <QuickPublishButton
+                      post={toPost({ ...post, projectId: post.projectId, projectName: post.projectName })}
+                      onSuccess={fetchDashboard}
+                      className="h-7 w-7"
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
